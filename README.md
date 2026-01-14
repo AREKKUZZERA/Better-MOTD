@@ -1,5 +1,10 @@
 # BetterMOTD
 
+![Paper](https://img.shields.io/badge/Paper-1.21.x-222?style=flat-square)
+![Java](https://img.shields.io/badge/Java-21%2B-222?style=flat-square)
+![Gradle](https://img.shields.io/badge/Gradle-8.x-222?style=flat-square)
+![License: MIT](https://img.shields.io/badge/License-MIT-222?style=flat-square)
+
 **BetterMOTD** - лёгкий и гибкий плагин для **Paper** серверов Minecraft, позволяющий настраивать
 динамический **MOTD** и **иконку сервера** с поддержкой анимаций, HEX-цветов и градиентов.
 
@@ -26,15 +31,16 @@
 - **Server:** Paper  
 - **Java:** 21+
 
+---
+
 ## 🚀 Installation
 
-1. Перейдите на страницу релизов:  
-   👉 https://github.com/AREKKUZZERA/better-motd/releases
+1. Перейдите на страницу [релизов](https://github.com/AREKKUZZERA/better-motd/releases)
 2. Скачайте **последний релиз** (`BetterMOTD-<version>.jar`)
 3. Поместите JAR-файл в папку `plugins/`
 4. Запустите сервер
 5. Настройте файл `plugins/BetterMOTD/config.yml`
-6. Перезапустите сервер или выполните `/reload` (не рекомендуется для продакшена)
+6. Перезапустите сервер или выполните `/reload` (не рекомендуется, могут быть ошибки)
 
 ---
 
@@ -45,10 +51,9 @@
 - Путь: `plugins/BetterMOTD/icons/`
 
 Если папка пуста, плагин автоматически создаст:
-```
 
+```txt
 icons/default.png
-
 ````
 
 ---
@@ -59,7 +64,7 @@ icons/default.png
 motd:
   - "<gradient:#00ffcc:#0099ff>Better Server</gradient>"
   - "<gray>Online players: <green>%online%</green></gray>"
-````
+```
 
 ---
 
