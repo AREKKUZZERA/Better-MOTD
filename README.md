@@ -4,6 +4,7 @@
 ![Java](https://img.shields.io/badge/Java-21%2B-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-8.x-02303A?style=flat-square&logo=gradle&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-3DA639?style=flat-square&logo=opensourceinitiative&logoColor=white)
+![Release](https://img.shields.io/github/v/release/AREKKUZZERA/better-motd?style=flat-square&logo=github)
 
 **BetterMOTD** - лёгкий и гибкий плагин для **Paper** серверов Minecraft, позволяющий настраивать
 динамический **MOTD** и **иконку сервера** с поддержкой анимаций, HEX-цветов и градиентов.
