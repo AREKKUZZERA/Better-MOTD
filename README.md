@@ -30,7 +30,7 @@ No NMS. No performance overhead.
 
 ## 📦 Compatibility
 
-- **Minecraft:** 1.21 – 1.21.11  
+- **Minecraft:** 1.21 - 1.21.11  
 - **Server:** Paper  
 - **Java:** 21+
 
@@ -101,8 +101,8 @@ BetterMOTD supports multiple presets with configurable weights.
 
 ### Selection modes:
 
-* **RANDOM** — random preset on each ping
-* **STICKY_PER_IP** — same preset for a client during a short time window
+* **RANDOM** - random preset on each ping
+* **STICKY_PER_IP** - same preset for a client during a short time window
 
 This allows consistent visuals for players while still keeping variety.
 
