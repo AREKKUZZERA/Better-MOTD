@@ -9,31 +9,22 @@ animation:
   frameIntervalMillis: 450
   motdAnimationMode: GLOBAL
 
-presetGroups:
-  main:
-    - id: "default"
-      weight: 5
-      motdFrames:
-        - "<gradient:#4DF1A1:#2ED1FF><bold>DEFAULT SQUAD</bold></gradient>\n<gray>1.21.x • <#A1FF5A>Vanilla+</#A1FF5A> • <white>%online%</white>/<white>%max%</white></gray>"
-        - "<gradient:#2ED1FF:#4DF1A1><bold>DEFAULT SQUAD</bold></gradient>\n<gray>1.21.x • <#FFD35A>Events tonight</#FFD35A> • <white>%online%</white>/<white>%max%</white></gray>"
+presets:
+  - id: "aurora"
+    weight: 5
+    motdFrames:
+      - "<gradient:#7CFFB2:#2ED1FF><bold>BETTERMOTD</bold></gradient>\n<gray>1.21.x • <white>%online%</white>/<white>%max%</white> players</gray>"
+      - "<gradient:#2ED1FF:#7CFFB2><bold>BETTERMOTD</bold></gradient>\n<gray>Join <#B7D9FF>example.net</#B7D9FF> • <white>%online%</white>/<white>%max%</white></gray>"
 
-    - id: "alt"
-      weight: 2
-      icon: "icons/alt.png"
-      motd:
-        - "<#7CFFB2><bold>BetterMOTD</bold></#7CFFB2> <gray>•</gray> <#B7D9FF>Survival</#B7D9FF>"
-        - "<gray>Join: <#FFFFFF>example.net</#FFFFFF></gray>"
+  - id: "ember"
+    weight: 3
+    icon: "icons/ember.png"
+    motdFrames:
+      - "<gradient:#FFB347:#FF5F6D><bold>EMBER REALM</bold></gradient>\n<gray>Survival • <white>%version%</white></gray>"
+      - "<gradient:#FF5F6D:#FFB347><bold>EMBER REALM</bold></gradient>\n<gray>Events tonight • <white>%online%</white>/<white>%max%</white></gray>"
 
-  maintenance:
-    - id: "maintenance"
-      weight: 1
-      motd:
-        - "<red><bold>Maintenance</bold></red>"
-        - "<gray>Whitelist is on. Try again soon.</gray>"
-
-rules:
-  - id: "maintenance-when-whitelist"
-    priority: 10
-    when:
-      whitelist: true
-    usePresetGroup: "maintenance"
+  - id: "classic"
+    weight: 1
+    motd:
+      - "<#7CFFB2><bold>BetterMOTD</bold></#7CFFB2> <gray>•</gray> <#B7D9FF>Vanilla+</#B7D9FF>"
+      - "<gray>Welcome back, %preset%</gray>"

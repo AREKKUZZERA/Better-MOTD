@@ -11,7 +11,6 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,9 +51,7 @@ public final class MotdService {
 
     public void apply(PaperServerListPingEvent event) {
         RequestContext ctx = new RequestContext(
-                asIp(event.getAddress()),
-                normalizeHost(event.getHostname()),
-                plugin.getServer().hasWhitelist()
+                asIp(event.getAddress())
         );
         SelectionResult selection = selectPreset(ctx, true);
         long now = System.currentTimeMillis();
@@ -66,9 +63,7 @@ public final class MotdService {
     @SuppressWarnings("deprecation")
     public void apply(ServerListPingEvent event) {
         RequestContext ctx = new RequestContext(
-                asIp(event.getAddress()),
-                normalizeHost(event.getHostname()),
-                plugin.getServer().hasWhitelist()
+                asIp(event.getAddress())
         );
         SelectionResult selection = selectPreset(ctx, true);
         long now = System.currentTimeMillis();
@@ -77,7 +72,7 @@ public final class MotdService {
     }
 
     public TestResult test(InetAddress address) {
-        RequestContext ctx = new RequestContext(asIp(address), null, plugin.getServer().hasWhitelist());
+        RequestContext ctx = new RequestContext(asIp(address));
         SelectionResult selection = selectPreset(ctx, false);
         long now = System.currentTimeMillis();
         String motd = buildPlainMotd(selection, ctx, now);
@@ -226,42 +221,11 @@ public final class MotdService {
     }
 
     private List<Preset> resolvePresets(RequestContext ctx) {
-        Map<String, List<Preset>> groups = config.presetGroups();
-        if (groups.isEmpty()) {
+        List<Preset> presets = config.presets();
+        if (presets == null || presets.isEmpty()) {
             return fallbackPresets;
         }
-
-        List<ConfigModel.Rule> rules = config.rules();
-        if (!rules.isEmpty()) {
-            ConfigModel.RuleContext ruleCtx = new ConfigModel.RuleContext(ctx.ip(), ctx.host(), ctx.whitelist());
-            for (ConfigModel.Rule rule : rules) {
-                if (rule.matches(ruleCtx)) {
-                    return presetGroupOrFallback(groups.get(rule.usePresetGroup()));
-                }
-            }
-        }
-
-        List<Preset> main = groups.get("main");
-        if (main != null && !main.isEmpty()) {
-            return main;
-        }
-
-        if (!groups.isEmpty()) {
-            for (List<Preset> group : groups.values()) {
-                if (group != null && !group.isEmpty()) {
-                    return group;
-                }
-            }
-        }
-
-        return fallbackPresets;
-    }
-
-    private List<Preset> presetGroupOrFallback(List<Preset> group) {
-        if (group == null || group.isEmpty()) {
-            return fallbackPresets;
-        }
-        return group;
+        return presets;
     }
 
     private Component buildMotd(SelectionResult selection, RequestContext ctx, long nowMs) {
@@ -360,31 +324,6 @@ public final class MotdService {
         return address == null ? null : address.getHostAddress();
     }
 
-    private String normalizeHost(String host) {
-        if (host == null || host.isBlank()) {
-            return null;
-        }
-        String trimmed = host.trim();
-        if (trimmed.isEmpty()) {
-            return null;
-        }
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        int colon = lower.lastIndexOf(':');
-        if (colon > 0 && colon < lower.length() - 1 && isPortSuffix(lower.substring(colon + 1))) {
-            return lower.substring(0, colon);
-        }
-        return lower;
-    }
-
-    private boolean isPortSuffix(String value) {
-        for (int i = 0; i < value.length(); i++) {
-            if (!Character.isDigit(value.charAt(i))) {
-                return false;
-            }
-        }
-        return !value.isEmpty();
-    }
-
     private record StickyEntry(Preset preset, long createdAtMs, int frameSeed) {
     }
 
@@ -400,6 +339,6 @@ public final class MotdService {
     public record StatEntry(String presetId, long count) {
     }
 
-    private record RequestContext(String ip, String host, boolean whitelist) {
+    private record RequestContext(String ip) {
     }
 }

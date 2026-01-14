@@ -1,15 +1,11 @@
 package bettermotd;
 
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.logging.Logger;
 
 public record ConfigModel(
@@ -20,8 +16,7 @@ public record ConfigModel(
         String motdAnimationMode,
         boolean placeholdersEnabled,
         String fallbackIconPath,
-        Map<String, List<Preset>> presetGroups,
-        List<Rule> rules
+        List<Preset> presets
 ) {
     public static final long DEFAULT_FRAME_INTERVAL_MILLIS = 450L;
     public static final List<String> FALLBACK_MOTD_LINES = List.of("BetterMOTD", "1.21.x");
@@ -35,7 +30,6 @@ public record ConfigModel(
                 "GLOBAL",
                 true,
                 null,
-                Collections.emptyMap(),
                 Collections.emptyList()
         );
     }
@@ -81,33 +75,12 @@ public record ConfigModel(
 
         String fallbackIconPath = resolveFallbackIconPath(dataFolder);
 
-        Map<String, List<Preset>> presetGroups = new LinkedHashMap<>();
-        int presetsLoaded = 0;
-
-        ConfigurationSection groupsSection = cfg.getConfigurationSection("presetGroups");
-        if (groupsSection != null) {
-            for (String key : groupsSection.getKeys(false)) {
-                List<Preset> parsed = parsePresetList(cfg.getMapList("presetGroups." + key), dataFolder, logger, fallbackIconPath);
-                if (parsed.isEmpty()) {
-                    logger.warning("Preset group '" + key + "' is empty. Falling back to built-in preset at runtime.");
-                    warnings++;
-                }
-                presetGroups.put(key, parsed);
-                presetsLoaded += parsed.size();
-            }
-        } else {
-            List<Preset> parsed = parsePresetList(cfg.getMapList("presets"), dataFolder, logger, fallbackIconPath);
-            if (!parsed.isEmpty()) {
-                presetGroups.put("main", parsed);
-            } else {
-                logger.warning("No presets found in root 'presets'. Falling back to built-in preset at runtime.");
-                warnings++;
-            }
-            presetsLoaded += parsed.size();
+        List<Preset> presets = parsePresetList(cfg.getMapList("presets"), dataFolder, logger, fallbackIconPath);
+        int presetsLoaded = presets.size();
+        if (presets.isEmpty()) {
+            logger.warning("No presets found in root 'presets'. Falling back to built-in preset at runtime.");
+            warnings++;
         }
-
-        List<Rule> rules = parseRules(cfg.getMapList("rules"), presetGroups, logger);
-        warnings += rules.stream().mapToInt(Rule::warnings).sum();
 
         ConfigModel model = new ConfigModel(
                 selectionMode,
@@ -117,8 +90,7 @@ public record ConfigModel(
                 animMode,
                 placeholdersEnabled,
                 fallbackIconPath,
-                presetGroups,
-                rules
+                presets
         );
 
         return new LoadResult(model, presetsLoaded, warnings);
@@ -202,35 +174,6 @@ public record ConfigModel(
         return normalized;
     }
 
-    private static List<Rule> parseRules(List<?> list, Map<String, List<Preset>> presetGroups, Logger logger) {
-        if (list == null || list.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<Rule> rules = new ArrayList<>(list.size());
-        for (Object raw : list) {
-            if (!(raw instanceof Map<?, ?> map)) {
-                continue;
-            }
-
-            String id = str(map.get("id"), "rule");
-            int priority = intv(map.get("priority"), 0);
-            String usePresetGroup = str(map.get("usePresetGroup"), "main");
-
-            RuleWhen when = RuleWhen.from(map.get("when"));
-
-            int warnings = 0;
-            if (!presetGroups.containsKey(usePresetGroup)) {
-                logger.warning("Rule '" + id + "' references missing preset group '" + usePresetGroup + "'.");
-                warnings++;
-            }
-
-            rules.add(new Rule(id, priority, when, usePresetGroup, warnings));
-        }
-
-        rules.sort((a, b) -> Integer.compare(b.priority(), a.priority()));
-        return rules;
-    }
 
     private static String str(Object o, String def) {
         if (o == null) {
@@ -263,76 +206,6 @@ public record ConfigModel(
             return out;
         }
         return Collections.emptyList();
-    }
-
-    public record Rule(String id, int priority, RuleWhen when, String usePresetGroup, int warnings) {
-        public boolean matches(RuleContext ctx) {
-            if (ctx == null) {
-                return false;
-            }
-
-            if (when.hostEquals() != null && !equalsIgnoreCase(ctx.host(), when.hostEquals())) {
-                return false;
-            }
-            if (when.hostEndsWith() != null && !endsWithIgnoreCase(ctx.host(), when.hostEndsWith())) {
-                return false;
-            }
-            if (when.ipStartsWith() != null) {
-                if (ctx.ip() == null || !ctx.ip().startsWith(when.ipStartsWith())) {
-                    return false;
-                }
-            }
-            if (when.whitelist() != null && !Objects.equals(ctx.whitelist(), when.whitelist())) {
-                return false;
-            }
-
-            return true;
-        }
-
-        private static boolean equalsIgnoreCase(String left, String right) {
-            if (left == null || right == null) {
-                return false;
-            }
-            return left.equalsIgnoreCase(right);
-        }
-
-        private static boolean endsWithIgnoreCase(String value, String suffix) {
-            if (value == null || suffix == null) {
-                return false;
-            }
-            return value.toLowerCase().endsWith(suffix.toLowerCase());
-        }
-    }
-
-    public record RuleWhen(String hostEquals, String hostEndsWith, String ipStartsWith, Boolean whitelist) {
-        public static RuleWhen from(Object raw) {
-            if (!(raw instanceof Map<?, ?> map)) {
-                return new RuleWhen(null, null, null, null);
-            }
-            String hostEquals = str(map.get("hostEquals"), null);
-            String hostEndsWith = str(map.get("hostEndsWith"), null);
-            String ipStartsWith = str(map.get("ipStartsWith"), null);
-            Boolean whitelist = bool(map.get("whitelist"));
-
-            return new RuleWhen(hostEquals, hostEndsWith, ipStartsWith, whitelist);
-        }
-
-        private static Boolean bool(Object o) {
-            if (o instanceof Boolean b) {
-                return b;
-            }
-            if (o == null) {
-                return null;
-            }
-            String val = String.valueOf(o).trim();
-            if (val.isEmpty()) {
-                return null;
-            }
-            return Boolean.parseBoolean(val);
-        }
-    }
-
-    public record RuleContext(String ip, String host, boolean whitelist) {
     }
 
     public record LoadResult(ConfigModel config, int presetsLoaded, int warnings) {
