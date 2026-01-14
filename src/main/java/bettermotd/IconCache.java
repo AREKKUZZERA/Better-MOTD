@@ -47,6 +47,17 @@ public final class IconCache {
         return loadIcon(path);
     }
 
+    public static String normalizeIconPath(String relPath) {
+        if (relPath == null || relPath.isBlank()) {
+            return null;
+        }
+        String normalized = relPath;
+        if (!normalized.contains("/") && !normalized.contains("\\") && normalized.toLowerCase().endsWith(".png")) {
+            normalized = "icons/" + normalized;
+        }
+        return normalized.replace("\\", "/");
+    }
+
     /*
      * =========================
      * Internal helpers
@@ -123,13 +134,9 @@ public final class IconCache {
     }
 
     private CachedServerIcon loadIcon(String relPath) {
-        if (relPath == null || relPath.isBlank())
+        String normalized = normalizeIconPath(relPath);
+        if (normalized == null)
             return null;
-        String normalized = relPath;
-        if (!normalized.contains("/") && !normalized.contains("\\") && normalized.toLowerCase().endsWith(".png")) {
-            normalized = "icons/" + normalized;
-        }
-        normalized = normalized.replace("\\", "/");
 
         return cache.computeIfAbsent(normalized, key -> {
             try {

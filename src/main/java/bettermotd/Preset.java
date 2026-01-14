@@ -9,7 +9,7 @@ public record Preset(
         List<String> motd,
         List<String> motdFrames
 ) {
-    public static Preset empty() {
-        return new Preset("empty", 1, "icons/default.png", List.of("BetterMOTD", "1.21.x"), List.of());
+    public static Preset fallback(String iconPath) {
+        return new Preset("fallback", 1, iconPath, ConfigModel.FALLBACK_MOTD_LINES, List.of());
     }
 }

@@ -1,20 +1,39 @@
 selectionMode: STICKY_PER_IP
 stickyTtlSeconds: 10
 
+placeholders:
+  enabled: true
+
 animation:
   enabled: true
   frameIntervalMillis: 450
+  motdAnimationMode: GLOBAL
 
-presets:
-  - id: "default"
-    weight: 5
-    motdFrames:
-      - "<gradient:#4DF1A1:#2ED1FF><bold>DEFAULT SQUAD</bold></gradient>\n<gray>1.21.x • <#A1FF5A>Vanilla+</#A1FF5A></gray>"
-      - "<gradient:#2ED1FF:#4DF1A1><bold>DEFAULT SQUAD</bold></gradient>\n<gray>1.21.x • <#FFD35A>Events tonight</#FFD35A></gray>"
+presetGroups:
+  main:
+    - id: "default"
+      weight: 5
+      motdFrames:
+        - "<gradient:#4DF1A1:#2ED1FF><bold>DEFAULT SQUAD</bold></gradient>\n<gray>1.21.x • <#A1FF5A>Vanilla+</#A1FF5A> • <white>%online%</white>/<white>%max%</white></gray>"
+        - "<gradient:#2ED1FF:#4DF1A1><bold>DEFAULT SQUAD</bold></gradient>\n<gray>1.21.x • <#FFD35A>Events tonight</#FFD35A> • <white>%online%</white>/<white>%max%</white></gray>"
 
-  - id: "alt"
-    weight: 2
-    icon: "icons/alt.png"
-    motd:
-      - "<#7CFFB2><bold>BetterMOTD</bold></#7CFFB2> <gray>•</gray> <#B7D9FF>Survival</#B7D9FF>"
-      - "<gray>Join: <#FFFFFF>default-squad.ru</#FFFFFF></gray>"
+    - id: "alt"
+      weight: 2
+      icon: "icons/alt.png"
+      motd:
+        - "<#7CFFB2><bold>BetterMOTD</bold></#7CFFB2> <gray>•</gray> <#B7D9FF>Survival</#B7D9FF>"
+        - "<gray>Join: <#FFFFFF>example.net</#FFFFFF></gray>"
+
+  maintenance:
+    - id: "maintenance"
+      weight: 1
+      motd:
+        - "<red><bold>Maintenance</bold></red>"
+        - "<gray>Whitelist is on. Try again soon.</gray>"
+
+rules:
+  - id: "maintenance-when-whitelist"
+    priority: 10
+    when:
+      whitelist: true
+    usePresetGroup: "maintenance"
