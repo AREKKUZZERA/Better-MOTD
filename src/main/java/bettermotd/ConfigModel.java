@@ -16,8 +16,7 @@ public record ConfigModel(
         String motdAnimationMode,
         boolean placeholdersEnabled,
         String fallbackIconPath,
-        List<Preset> presets
-) {
+        List<Preset> presets) {
     public static final long DEFAULT_FRAME_INTERVAL_MILLIS = 450L;
     public static final List<String> FALLBACK_MOTD_LINES = List.of("BetterMOTD", "1.21.x");
 
@@ -30,8 +29,7 @@ public record ConfigModel(
                 "GLOBAL",
                 true,
                 null,
-                Collections.emptyList()
-        );
+                Collections.emptyList());
     }
 
     public static LoadResult load(FileConfiguration cfg, File dataFolder, Logger logger) {
@@ -59,7 +57,8 @@ public record ConfigModel(
         boolean animEnabled = cfg.getBoolean("animation.enabled", true);
         long interval = cfg.getLong("animation.frameIntervalMillis", DEFAULT_FRAME_INTERVAL_MILLIS);
         if (interval <= 0) {
-            logger.warning("animation.frameIntervalMillis must be > 0. Using default " + DEFAULT_FRAME_INTERVAL_MILLIS + ".");
+            logger.warning(
+                    "animation.frameIntervalMillis must be > 0. Using default " + DEFAULT_FRAME_INTERVAL_MILLIS + ".");
             interval = DEFAULT_FRAME_INTERVAL_MILLIS;
             warnings++;
         }
@@ -90,8 +89,7 @@ public record ConfigModel(
                 animMode,
                 placeholdersEnabled,
                 fallbackIconPath,
-                presets
-        );
+                presets);
 
         return new LoadResult(model, presetsLoaded, warnings);
     }
@@ -145,7 +143,8 @@ public record ConfigModel(
         return presets;
     }
 
-    private static String resolveIcon(Object raw, File dataFolder, Logger logger, String fallbackIconPath, String presetId) {
+    private static String resolveIcon(Object raw, File dataFolder, Logger logger, String fallbackIconPath,
+            String presetId) {
         String icon = str(raw, null);
         if (icon == null || icon.isBlank()) {
             if (fallbackIconPath != null) {
@@ -164,7 +163,8 @@ public record ConfigModel(
         File iconFile = new File(dataFolder, normalized);
         if (!iconFile.isFile()) {
             if (fallbackIconPath != null) {
-                logger.warning("Preset '" + presetId + "' icon not found: " + iconFile.getPath() + ". Using " + fallbackIconPath + ".");
+                logger.warning("Preset '" + presetId + "' icon not found: " + iconFile.getPath() + ". Using "
+                        + fallbackIconPath + ".");
                 return fallbackIconPath;
             }
             logger.warning("Preset '" + presetId + "' icon not found: " + iconFile.getPath() + ".");
@@ -173,7 +173,6 @@ public record ConfigModel(
 
         return normalized;
     }
-
 
     private static String str(Object o, String def) {
         if (o == null) {

@@ -35,7 +35,8 @@ public final class MotdService {
     }
 
     public ReloadResult reload() {
-        ConfigModel.LoadResult result = ConfigModel.load(plugin.getConfig(), plugin.getDataFolder(), plugin.getLogger());
+        ConfigModel.LoadResult result = ConfigModel.load(plugin.getConfig(), plugin.getDataFolder(),
+                plugin.getLogger());
         this.config = result.config();
         this.fallbackPresets = List.of(Preset.fallback(result.config().fallbackIconPath()));
         iconCache.reload(config);
@@ -51,8 +52,7 @@ public final class MotdService {
 
     public void apply(PaperServerListPingEvent event) {
         RequestContext ctx = new RequestContext(
-                asIp(event.getAddress())
-        );
+                asIp(event.getAddress()));
         SelectionResult selection = selectPreset(ctx, true);
         long now = System.currentTimeMillis();
 
@@ -63,8 +63,7 @@ public final class MotdService {
     @SuppressWarnings("deprecation")
     public void apply(ServerListPingEvent event) {
         RequestContext ctx = new RequestContext(
-                asIp(event.getAddress())
-        );
+                asIp(event.getAddress()));
         SelectionResult selection = selectPreset(ctx, true);
         long now = System.currentTimeMillis();
 
@@ -104,7 +103,8 @@ public final class MotdService {
         String ip = ctx.ip();
 
         StickyEntry entry = getStickyEntry(ip, now, ttlMs);
-        boolean perIpFrames = ConfigModel.AnimationMode.PER_IP_STICKY.name().equalsIgnoreCase(config.motdAnimationMode());
+        boolean perIpFrames = ConfigModel.AnimationMode.PER_IP_STICKY.name()
+                .equalsIgnoreCase(config.motdAnimationMode());
 
         Preset chosen;
         if (ConfigModel.SelectionMode.STICKY_PER_IP.name().equalsIgnoreCase(mode) && ip != null) {
@@ -139,7 +139,7 @@ public final class MotdService {
     }
 
     private StickyEntry updateStickyEntry(String ip, StickyEntry existing, Preset preset, long now, long ttlMs,
-                                          boolean ensureFrameSeed) {
+            boolean ensureFrameSeed) {
         if (ip == null) {
             return null;
         }
@@ -265,7 +265,8 @@ public final class MotdService {
         if (size <= 0) {
             return 0;
         }
-        if (ConfigModel.AnimationMode.PER_IP_STICKY.name().equalsIgnoreCase(config.motdAnimationMode()) && ctx.ip() != null) {
+        if (ConfigModel.AnimationMode.PER_IP_STICKY.name().equalsIgnoreCase(config.motdAnimationMode())
+                && ctx.ip() != null) {
             StickyEntry entry = selection.stickyEntry();
             if (entry != null) {
                 return Math.floorMod(entry.frameSeed(), size);

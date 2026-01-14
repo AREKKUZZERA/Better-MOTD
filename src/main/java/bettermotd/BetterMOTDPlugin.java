@@ -22,10 +22,10 @@ public final class BetterMOTDPlugin extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(
                 new ServerPingListener(motdService),
-                this
-        );
+                this);
 
-        getLogger().info("BetterMOTD enabled. Presets loaded: " + result.presetsLoaded() + ", warnings: " + result.warnings());
+        getLogger().info(
+                "BetterMOTD enabled. Presets loaded: " + result.presetsLoaded() + ", warnings: " + result.warnings());
     }
 
     @Override
@@ -65,7 +65,8 @@ public final class BetterMOTDPlugin extends JavaPlugin {
         }
         reloadConfig();
         MotdService.ReloadResult result = motdService.reload();
-        sender.sendMessage("BetterMOTD reloaded. Presets loaded: " + result.presetsLoaded() + ", warnings: " + result.warnings());
+        sender.sendMessage(
+                "BetterMOTD reloaded. Presets loaded: " + result.presetsLoaded() + ", warnings: " + result.warnings());
         return true;
     }
 
