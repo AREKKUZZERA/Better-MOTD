@@ -6,8 +6,7 @@
 [![Modrinth](https://img.shields.io/badge/Modrinth-Available-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/plugin/better-motd)
 
 **BetterMOTD** is a lightweight and flexible plugin for **Paper/Spigot** Minecraft servers that provides
-dynamic **server MOTD** and **server icon** customization with frame-based animations, HEX colors,
-and gradients.
+custom **server MOTD** and **server icon** customization with MiniMessage, legacy, JSON, and hex color support.
 
 The plugin is designed to be minimal, fast, and easy to configure.  
 No NMS. No performance overhead.
@@ -18,8 +17,8 @@ No NMS. No performance overhead.
 
 - 🎨 Dynamic MOTD with **MiniMessage**, legacy, JSON, and Birdflop-style `&#RRGGBB` support
 - 🌈 HEX colors, gradients, and formatting (including §x RGB on Spigot)
-- 🖼️ Server icon switching
-- 🎯 Weighted random or sticky-per-IP preset selection
+- 🖼️ Server icon switching per preset
+- 🎯 Weighted random, sticky-per-IP, hashed-per-IP, or rotating preset selection
 - 🧩 Default icon (`default.png`) generated on first startup
 - ⚡ Lightweight, async-safe implementation
 
@@ -54,13 +53,14 @@ plugins/BetterMOTD/
  ├─ config.yml
  └─ icons/
     └─ default.png
-````
+```
 
 You can immediately customize:
 
 * MOTD text and animation frames
-* Server icons
 * Preset weights and selection mode
+* Player count display options
+* Server icons per preset
 
 ---
 
@@ -105,7 +105,7 @@ motd:
   - "<gray>Online players: <green>%online%</green></gray>"
 ```
 
-Animated MOTD can be defined using frame lists with a configurable interval.
+Animated MOTD can be defined using `motdFrames` with a configurable `frameIntervalMillis`.
 
 ---
 
@@ -117,8 +117,8 @@ BetterMOTD supports multiple presets with configurable weights.
 
 * **RANDOM** - random preset on each ping
 * **STICKY_PER_IP** - same preset for a client during a short time window
-
-This allows consistent visuals for players while still keeping variety.
+* **HASHED_PER_IP** - stable preset per IP
+* **ROTATE** - cycles through presets in order
 
 ---
 
@@ -128,22 +128,10 @@ All settings are located in `config.yml`.
 
 Main configuration areas:
 
-* preset definitions and weights
+* profiles and preset definitions
 * MOTD frames and animation speed
-* server icon frames
+* player count settings (fake players, hide counts, max override)
 * selection mode and sticky TTL
-
-The configuration is human-readable and safe to edit without restarts (restart recommended).
-
----
-
-## 🧠 Performance & Safety
-
-* No NMS usage
-* No packet interception
-* No impact on gameplay or tick performance
-* Uses Paper API and Adventure components only
-* Safe for large public servers
 
 ---
 

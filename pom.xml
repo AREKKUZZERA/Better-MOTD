@@ -5,7 +5,7 @@
 
   <groupId>bettermotd</groupId>
   <artifactId>BetterMOTD</artifactId>
-  <version>1.0.0</version>
+  <version>1.3.0</version>
   <packaging>jar</packaging>
 
   <name>BetterMOTD</name>
@@ -32,7 +32,7 @@
   </dependencies>
 
   <build>
-    <finalName>BetterMOTD-1.0.0</finalName>
+    <finalName>${project.artifactId}-${project.version}</finalName>
 
     <plugins>
       <plugin>

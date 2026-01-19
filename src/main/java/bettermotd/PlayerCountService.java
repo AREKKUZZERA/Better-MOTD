@@ -49,7 +49,8 @@ public final class PlayerCountService {
         }
 
         try {
-            event.setMaxPlayers(result.displayOnline());
+            // Use setNumPlayers for online count; setMaxPlayers is max slots.
+            event.setNumPlayers(result.displayOnline());
             event.setMaxPlayers(result.displayMax());
         } catch (Exception e) {
             if (logger != null) {
