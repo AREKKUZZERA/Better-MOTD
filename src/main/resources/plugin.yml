@@ -3,6 +3,7 @@ version: 1.1.0
 main: bettermotd.BetterMOTDPlugin
 api-version: "1.21"
 author: AREKKUZZERA
+description: Flexible MOTD/icon plugin with MiniMessage, legacy, and JSON color support.
 
 commands:
   bettermotd:

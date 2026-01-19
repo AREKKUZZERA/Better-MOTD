@@ -19,6 +19,8 @@ public record ConfigModel(
         String activeProfile,
         boolean placeholdersEnabled,
         String fallbackIconPath,
+        ColorFormat colorFormat,
+        boolean debugSelfTest,
         Map<String, Profile> profiles) {
     public static final long DEFAULT_FRAME_INTERVAL_MILLIS = 450L;
     public static final List<String> FALLBACK_MOTD_LINES = List.of("BetterMOTD", "1.21.x");
@@ -28,6 +30,8 @@ public record ConfigModel(
                 "default",
                 true,
                 null,
+                ColorFormat.AUTO,
+                false,
                 Collections.emptyMap());
     }
 
@@ -40,6 +44,14 @@ public record ConfigModel(
         validateDataFolder(dataFolder, logger, warnings);
 
         boolean placeholdersEnabled = cfg.getBoolean("placeholders.enabled", true);
+        String colorFormatRaw = cfg.getString("colorFormat", ColorFormat.AUTO.name());
+        ColorFormat colorFormat = ColorFormat.from(colorFormatRaw);
+        if (colorFormat == null) {
+            warnings.incrementAndGet();
+            logger.warning("Unknown colorFormat '" + colorFormatRaw + "'. Using AUTO.");
+            colorFormat = ColorFormat.AUTO;
+        }
+        boolean debugSelfTest = cfg.getBoolean("debug.selfTest", false);
         String activeProfile = str(cfg.getString("activeProfile"), "default");
         String fallbackIconPath = resolveFallbackIconPath(dataFolder);
 
@@ -96,6 +108,8 @@ public record ConfigModel(
                 activeProfile,
                 placeholdersEnabled,
                 fallbackIconPath,
+                colorFormat,
+                debugSelfTest,
                 Collections.unmodifiableMap(profiles));
 
         return new LoadResult(model, warnings.get(), legacy, presetCounts, fallbackProfiles);
@@ -317,8 +331,8 @@ public record ConfigModel(
 
             if (motd.isEmpty() && motdFrames.isEmpty()) {
                 warn(logger, warnings,
-                        "Preset '" + id + "' in profile '" + profileId + "' has no motd or motdFrames.");
-                motd = FALLBACK_MOTD_LINES;
+                        "Preset '" + id + "' in profile '" + profileId + "' has no motd or motdFrames. Skipping.");
+                continue;
             }
 
             presets.add(new Preset(id, weight, icon, motd, motdFrames));
