@@ -4,6 +4,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.event.server.ServerListPingEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import net.kyori.adventure.text.Component;
+
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,12 +23,13 @@ public final class MotdService {
     private final JavaPlugin plugin;
     private final ActiveProfileStore profileStore;
     private final IconCache iconCache;
-    private final MiniMessageAdapter miniMessage;
+    private final TextFormatService textFormatService;
     private final PaperPingAdapter paperAdapter;
     private final PlayerCountService playerCountService;
 
     private final Map<String, Map<String, StickyEntry>> stickyPerProfile = new ConcurrentHashMap<>();
     private final Map<String, AtomicInteger> rotateCounters = new ConcurrentHashMap<>();
+    private final Set<String> formatWarnings = ConcurrentHashMap.newKeySet();
 
     private volatile ConfigModel config = ConfigModel.empty();
     private volatile String activeProfileId = "default";
@@ -35,8 +38,8 @@ public final class MotdService {
         this.plugin = plugin;
         this.profileStore = profileStore;
         this.iconCache = new IconCache(plugin);
-        this.miniMessage = new MiniMessageAdapter(plugin.getLogger());
-        this.paperAdapter = new PaperPingAdapter(plugin.getLogger(), miniMessage);
+        this.textFormatService = new TextFormatService();
+        this.paperAdapter = new PaperPingAdapter(plugin.getLogger());
         this.playerCountService = new PlayerCountService(plugin.getLogger());
     }
 
@@ -51,8 +54,12 @@ public final class MotdService {
             iconCache.reload(collectIconPaths(config));
             stickyPerProfile.clear();
             rotateCounters.clear();
+            formatWarnings.clear();
 
             logSummary(result);
+            if (config.debugSelfTest()) {
+                runFormatSelfTest();
+            }
             return new ReloadResult(true, result.warnings());
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to reload BetterMOTD: " + e.getMessage());
@@ -111,10 +118,13 @@ public final class MotdService {
             PlayerCountService.PlayerCountResult counts = playerCountService.compute(profile, ctx.ip(),
                     event.getNumPlayers(), event.getMaxPlayers(), now);
             String motdRaw = buildMotd(profile, selection, counts, ctx);
+            TextFormatService.ParseResult parsed = textFormatService.parseToComponentDetailed(motdRaw,
+                    config.colorFormat());
+            warnIfFallback(profile, selection.preset(), parsed);
 
-            boolean usedPaper = paperAdapter.applyMotd(event, motdRaw);
+            boolean usedPaper = paperAdapter.applyMotd(event, parsed.component());
             if (!usedPaper) {
-                event.setMotd(stripMiniMessageTags(motdRaw));
+                event.setMotd(textFormatService.serializeToLegacy(parsed.component()));
             }
 
             playerCountService.apply(event, counts, paperAdapter);
@@ -159,7 +169,11 @@ public final class MotdService {
         PlayerCountService.PlayerCountResult counts = playerCountService.compute(profile, ctx.ip(),
                 Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers(), now);
         String motdRaw = buildMotd(profile, selection, counts, ctx);
-        List<String> lines = splitMotd(stripMiniMessageTags(motdRaw));
+        TextFormatService.ParseResult parsed = textFormatService.parseToComponentDetailed(motdRaw,
+                config.colorFormat());
+        warnIfFallback(profile, selection.preset(), parsed);
+        List<String> lines = splitMotd(motdRaw);
+        List<String> legacyLines = splitMotd(textFormatService.serializeToLegacy(parsed.component()));
         String icon = selection.preset().icon();
         String resolvedIcon = icon == null || icon.isBlank() ? "(none)" : icon;
 
@@ -169,6 +183,9 @@ public final class MotdService {
                 fromProfile,
                 reason,
                 lines,
+                legacyLines,
+                config.colorFormat(),
+                parsed.usedFormat(),
                 resolvedIcon,
                 counts);
     }
@@ -375,29 +392,6 @@ public final class MotdService {
         return output;
     }
 
-    private String stripMiniMessageTags(String input) {
-        if (input == null || input.indexOf('<') < 0) {
-            return input;
-        }
-        StringBuilder out = new StringBuilder(input.length());
-        boolean inTag = false;
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
-            if (c == '<') {
-                inTag = true;
-                continue;
-            }
-            if (c == '>') {
-                inTag = false;
-                continue;
-            }
-            if (!inTag) {
-                out.append(c);
-            }
-        }
-        return out.toString();
-    }
-
     private String asIp(InetAddress address) {
         return address == null ? null : address.getHostAddress();
     }
@@ -475,6 +469,41 @@ public final class MotdService {
         plugin.getLogger().info(summary.toString());
     }
 
+    private void warnIfFallback(Profile profile, Preset preset, TextFormatService.ParseResult result) {
+        if (result == null || !result.fallbackUsed()) {
+            return;
+        }
+        String key = profile.id() + ":" + preset.id() + ":" + result.usedFormat();
+        if (formatWarnings.add(key)) {
+            plugin.getLogger().warning(
+                    "Formatting failed for profile '" + profile.id() + "', preset '" + preset.id()
+                            + "' using " + result.usedFormat() + ". Using plain text fallback.");
+        }
+    }
+
+    private void runFormatSelfTest() {
+        List<String> samples = List.of(
+                "<gradient:#00D431:#00BF4B>TEXT</gradient>",
+                "&#00D431M&#00D332O&#00D233T&#00CF34D",
+                "{\"text\":\"\",\"extra\":[{\"text\":\"M\",\"color\":\"#00D431\"}]}",
+                "§x§0§0§D§4§3§1MOTD",
+                "&x&0&0&D&4&3&1MOTD");
+        for (String sample : samples) {
+            try {
+                TextFormatService.ParseResult parsed = textFormatService.parseToComponentDetailed(sample,
+                        ColorFormat.AUTO);
+                if (parsed.fallbackUsed()) {
+                    plugin.getLogger().warning("Self-test fallback used for sample: " + sample);
+                }
+                if (parsed.component().equals(Component.empty())) {
+                    plugin.getLogger().warning("Self-test produced empty component for sample: " + sample);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Self-test failed for sample: " + sample + " (" + e.getMessage() + ")");
+            }
+        }
+    }
+
     private record StickyEntry(Preset preset, long createdAtMs, int frameSeed) {
     }
 
@@ -490,6 +519,9 @@ public final class MotdService {
             boolean fromProfile,
             String reason,
             List<String> motdLines,
+            List<String> legacyLines,
+            ColorFormat configuredFormat,
+            ColorFormat usedFormat,
             String iconPath,
             PlayerCountService.PlayerCountResult playerCounts) {
     }

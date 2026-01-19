@@ -7,28 +7,26 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
+import net.kyori.adventure.text.Component;
+
 public final class PaperPingAdapter {
 
     private final Logger logger;
-    private final MiniMessageAdapter miniMessage;
     private final Class<?> paperEventClass;
     private final Method motdMethod;
     private final Method hidePlayersMethod;
     private final Method setPlayerSampleMethod;
     private final AtomicBoolean warnedMotd = new AtomicBoolean();
 
-    public PaperPingAdapter(Logger logger, MiniMessageAdapter miniMessage) {
+    public PaperPingAdapter(Logger logger) {
         this.logger = logger;
-        this.miniMessage = miniMessage;
         Class<?> paperClass = null;
         Method motd = null;
         Method hidePlayers = null;
         Method sample = null;
         try {
             paperClass = Class.forName("com.destroystokyo.paper.event.server.PaperServerListPingEvent");
-            if (miniMessage.componentClass() != null) {
-                motd = paperClass.getMethod("motd", miniMessage.componentClass());
-            }
+            motd = paperClass.getMethod("motd", Component.class);
             try {
                 hidePlayers = paperClass.getMethod("setHidePlayers", boolean.class);
             } catch (NoSuchMethodException ignored) {
@@ -50,12 +48,8 @@ public final class PaperPingAdapter {
         return paperEventClass != null && paperEventClass.isInstance(event);
     }
 
-    public boolean applyMotd(ServerListPingEvent event, String motdText) {
-        if (!isPaperEvent(event) || motdMethod == null || miniMessage == null) {
-            return false;
-        }
-        Object component = miniMessage.deserialize(motdText);
-        if (component == null) {
+    public boolean applyMotd(ServerListPingEvent event, Component component) {
+        if (!isPaperEvent(event) || motdMethod == null || component == null) {
             return false;
         }
         try {

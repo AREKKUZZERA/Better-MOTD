@@ -123,9 +123,17 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             sender.sendMessage("- player hover list disabled (Paper only)");
         }
 
+        sender.sendMessage("- format: configured=" + result.configuredFormat()
+                + ", detected=" + result.usedFormat());
         sender.sendMessage("- motd:");
         for (String line : result.motdLines()) {
             sender.sendMessage("  " + line);
+        }
+        if (!result.legacyLines().isEmpty()) {
+            sender.sendMessage("- legacy preview (Spigot/Bukkit):");
+            for (String line : result.legacyLines()) {
+                sender.sendMessage("  " + line);
+            }
         }
 
         return true;

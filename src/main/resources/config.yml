@@ -5,6 +5,19 @@ activeProfile: "default"
 placeholders:
   enabled: true
 
+# Supported color formats:
+# - MINI_MESSAGE (MiniMessage tags like <gradient:#00D431:#00BF4B>Text</gradient>, <#00D431>Text)
+# - HEX_AMPERSAND (&#00D431Text from Birdflop-style presets)
+# - JSON (Minecraft JSON component string)
+# - LEGACY_SECTION (§a, §x§0§0§D§4§3§1)
+# - LEGACY_AMPERSAND (&a, &x&0&0&D&4&3&1)
+# - AUTO (detects based on content)
+colorFormat: "AUTO"
+
+# Enable internal formatter self-tests on startup (logs warnings only).
+debug:
+  selfTest: false
+
 profiles:
   default:
     # RANDOM | STICKY_PER_IP | HASHED_PER_IP | ROTATE

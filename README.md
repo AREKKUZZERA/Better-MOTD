@@ -5,8 +5,8 @@
 ![Release](https://img.shields.io/github/v/release/AREKKUZZERA/better-motd?style=flat-square&logo=github)
 [![Modrinth](https://img.shields.io/badge/Modrinth-Available-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/plugin/better-motd)
 
-**BetterMOTD** is a lightweight and flexible plugin for **Paper** Minecraft servers that provides
-dynamic **server MOTD** and **server icon** customization with support for animations, HEX colors,
+**BetterMOTD** is a lightweight and flexible plugin for **Paper/Spigot** Minecraft servers that provides
+dynamic **server MOTD** and **server icon** customization with frame-based animations, HEX colors,
 and gradients.
 
 The plugin is designed to be minimal, fast, and easy to configure.  
@@ -16,8 +16,8 @@ No NMS. No performance overhead.
 
 ## ✨ Features
 
-- 🎨 Dynamic MOTD with **MiniMessage** support
-- 🌈 HEX colors, gradients, and formatting
+- 🎨 Dynamic MOTD with **MiniMessage**, legacy, JSON, and Birdflop-style `&#RRGGBB` support
+- 🌈 HEX colors, gradients, and formatting (including §x RGB on Spigot)
 - 🖼️ Server icon switching
 - 🎯 Weighted random or sticky-per-IP preset selection
 - 🧩 Default icon (`default.png`) generated on first startup
@@ -28,7 +28,7 @@ No NMS. No performance overhead.
 ## 📦 Compatibility
 
 - **Minecraft:** 1.21 - 1.21.11  
-- **Server:** Paper  
+- **Server:** Paper / Spigot  
 - **Java:** 21+
 
 ---
@@ -88,9 +88,16 @@ icons/default.png
 
 ---
 
-## 📝 MOTD Format (MiniMessage)
+## 📝 MOTD Format
 
-BetterMOTD uses **MiniMessage**, allowing modern formatting:
+BetterMOTD supports multiple formatting syntaxes and automatically detects them in `AUTO` mode:
+
+- MiniMessage tags (`<gradient:#00ffcc:#0099ff>`, `<#00ffcc>`, `<bold>`, etc.)
+- Birdflop-style inline hex (`&#00D431Text`)
+- JSON components (`{"text":"","extra":[{"text":"M","color":"#00D431"}]}`)
+- Legacy section/ampersand codes (`§a`, `&a`, `§x§0§0§D§4§3§1`, `&x&0&0&D&4&3&1`)
+
+MiniMessage example:
 
 ```yml
 motd:
