@@ -7,7 +7,7 @@
 
 **BetterMOTD** is a lightweight and flexible plugin for **Paper/Spigot** Minecraft servers that provides
 custom **server MOTD** and **server icon** customization with MiniMessage, legacy, JSON, and hex color support.
- 
+
 The plugin is designed to be minimal, fast, and easy to configure.  
 No NMS. No performance overhead.
 
