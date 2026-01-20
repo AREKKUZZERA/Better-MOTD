@@ -1,4 +1,4 @@
-# BetterMOTD
+![BetterMOTD](src/main/resources/bettermotd-logo.png)
 
 ![Java Version](https://img.shields.io/badge/Java-21+-blue)
 ![PaperMC](https://img.shields.io/badge/Paper-1.21.x-white)
