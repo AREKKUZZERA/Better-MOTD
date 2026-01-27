@@ -7,8 +7,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import net.kyori.adventure.text.Component;
 
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -19,13 +17,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
@@ -56,12 +52,9 @@ public final class MotdService {
     private final Map<String, AtomicInteger> rotateCounters = new ConcurrentHashMap<>();
     private final Set<String> formatWarnings = ConcurrentHashMap.newKeySet();
     private final Map<String, PresetCache> presetCache = new ConcurrentHashMap<>();
-    private final AtomicBoolean routingWarned = new AtomicBoolean();
-    private final AtomicBoolean whitelistProfileWarned = new AtomicBoolean();
 
     private volatile ConfigModel config = ConfigModel.empty();
     private volatile String activeProfileId = "default";
-    private volatile CachedFrame whitelistFrame;
 
     public MotdService(JavaPlugin plugin, ActiveProfileStore profileStore) {
         this.plugin = plugin;
@@ -82,14 +75,11 @@ public final class MotdService {
 
             iconCache.reload(collectIconPaths(config));
             formatWarnings.clear();
-            whitelistProfileWarned.set(false);
             rebuildPresetCache();
             stickyStates.clear();
             rotateCounters.clear();
-            whitelistFrame = buildWhitelistFrame(config.whitelist());
 
             logSummary(result);
-            warnIfWhitelistProfileMissing();
             if (config.debugSelfTest()) {
                 runFormatSelfTest();
             }
@@ -121,10 +111,6 @@ public final class MotdService {
         return activeProfileId;
     }
 
-    public ConfigModel.WhitelistSettings getWhitelistSettings() {
-        return config.whitelist();
-    }
-
     public Set<String> getProfileIds() {
         return config.profiles().keySet();
     }
@@ -148,22 +134,7 @@ public final class MotdService {
         try {
             long now = System.currentTimeMillis();
             RequestContext ctx = new RequestContext(asIp(event.getAddress()), now);
-            ConfigModel.WhitelistSettings whitelistSettings = config.whitelist();
-            if (whitelistSettings.enabled() && Bukkit.hasWhitelist()) {
-                if (!whitelistSettings.whitelistMotdProfile().isBlank()) {
-                    Profile forced = config.profiles().get(whitelistSettings.whitelistMotdProfile());
-                    if (forced != null) {
-                        applySelection(event, ctx, forced);
-                        return;
-                    }
-                }
-                if (whitelistSettings.mode() == ConfigModel.WhitelistMode.OFFLINE_FOR_NON_WHITELISTED) {
-                    applyWhitelistOffline(event, ctx, whitelistSettings);
-                    return;
-                }
-            }
-
-            Profile profile = resolveProfile(resolveProfileIdForRouting(event));
+            Profile profile = resolveProfile(activeProfileId);
             applySelection(event, ctx, profile);
         } catch (Exception e) {
             logException(Level.WARNING,
@@ -255,50 +226,6 @@ public final class MotdService {
         }
     }
 
-    private void applyWhitelistOffline(ServerListPingEvent event, RequestContext ctx,
-            ConfigModel.WhitelistSettings whitelistSettings) {
-        CachedFrame frame = whitelistFrame != null ? whitelistFrame : buildWhitelistFrame(whitelistSettings);
-        Preset preset = new Preset("whitelist", 1, whitelistSettings.iconPath(),
-                whitelistSettings.motdLines(), List.of());
-        PlayerCountService.PlayerCountResult counts = new PlayerCountService.PlayerCountResult(0, 0, 0, 0, 0,
-                false, false);
-
-        MotdRenderResult render = renderMotd("whitelist", preset, frame, counts, ctx, 0);
-        TextFormatService.ParseResult parsed = render.parsed();
-
-        boolean usedPaper = paperAdapter.applyMotd(event, parsed.component());
-        if (!usedPaper) {
-            setLegacyMotd(event, textFormatService.serializeToLegacy(parsed.component()));
-        }
-
-        try {
-            paperAdapter.applyOnlinePlayers(event, 0);
-            event.setMaxPlayers(0);
-        } catch (Exception e) {
-            logException(Level.WARNING, "Failed to apply whitelist player counts.", e);
-        }
-
-        try {
-            event.setServerIcon(iconCache.pickIcon(preset));
-        } catch (Exception e) {
-            logException(Level.WARNING, "Failed to set whitelist server icon.", e);
-        }
-    }
-
-    private String resolveProfileIdForRouting(ServerListPingEvent event) {
-        if (!config.routing().enabled()) {
-            return activeProfileId;
-        }
-        String host = resolveVirtualHost(event);
-        if (host == null || host.isBlank()) {
-            return activeProfileId;
-        }
-        String mapped = config.routing().hostMap().get(host.toLowerCase(Locale.ROOT));
-        if (mapped == null || mapped.isBlank()) {
-            return activeProfileId;
-        }
-        return config.profiles().containsKey(mapped) ? mapped : activeProfileId;
-    }
 
     private SelectionResult selectPreset(Profile profile, RequestContext ctx, boolean count) {
         List<Preset> presets = profile.presets();
@@ -661,20 +588,6 @@ public final class MotdService {
         return new CachedFrame(raw, true, null, config.colorFormat(), false);
     }
 
-    private CachedFrame buildWhitelistFrame(ConfigModel.WhitelistSettings whitelistSettings) {
-        List<String> lines = whitelistSettings.motdLines();
-        if (lines == null || lines.isEmpty()) {
-            lines = List.of("Whitelisted", "");
-        }
-        String raw = lines.get(0) + "\n" + lines.get(1);
-        boolean hasPlaceholders = hasPlaceholders(raw);
-        if (!hasPlaceholders) {
-            TextFormatService.ParseResult parsed = textFormatService.parseToComponentDetailed(raw,
-                    config.colorFormat());
-            return new CachedFrame(raw, false, parsed.component(), parsed.usedFormat(), parsed.fallbackUsed());
-        }
-        return new CachedFrame(raw, true, null, config.colorFormat(), false);
-    }
 
     private boolean hasPlaceholders(String input) {
         if (input == null || input.indexOf('%') < 0) {
@@ -710,9 +623,6 @@ public final class MotdService {
         paths.add("icons/default.png");
         if (config.fallbackIconPath() != null) {
             paths.add(config.fallbackIconPath());
-        }
-        if (config.whitelist().iconPath() != null) {
-            paths.add(config.whitelist().iconPath());
         }
         for (Profile profile : config.profiles().values()) {
             for (Preset preset : profile.presets()) {
@@ -786,41 +696,6 @@ public final class MotdService {
         }
     }
 
-    private String resolveVirtualHost(ServerListPingEvent event) {
-        if (event == null) {
-            return null;
-        }
-        Method method = VirtualHostResolver.resolveMethod(event.getClass());
-        if (method == null) {
-            if (config.debugVerbose() && routingWarned.compareAndSet(false, true)) {
-                plugin.getLogger().info("Virtual host routing not available: no compatible ping method found.");
-            }
-            return null;
-        }
-        try {
-            Object value = method.invoke(event);
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof String host) {
-                return host;
-            }
-            if (value instanceof InetSocketAddress address) {
-                String host = address.getHostString();
-                if (host == null && address.getAddress() != null) {
-                    host = address.getAddress().getHostName();
-                }
-                return host;
-            }
-            return String.valueOf(value);
-        } catch (Exception e) {
-            if (config.debugVerbose() && routingWarned.compareAndSet(false, true)) {
-                logException(Level.WARNING, "Failed to resolve virtual host for routing.", e);
-            }
-            return null;
-        }
-    }
-
     private String ctxString(ServerListPingEvent event) {
         InetAddress address = event != null ? event.getAddress() : null;
         return address != null ? address.getHostAddress() : "unknown";
@@ -858,17 +733,6 @@ public final class MotdService {
         }
     }
 
-    private void warnIfWhitelistProfileMissing() {
-        String profileId = config.whitelist().whitelistMotdProfile();
-        if (profileId == null || profileId.isBlank()) {
-            return;
-        }
-        if (!config.profiles().containsKey(profileId) && whitelistProfileWarned.compareAndSet(false, true)) {
-            plugin.getLogger().warning(
-                    "whitelist.whitelistMotdProfile is set to '" + profileId
-                            + "' but no such profile exists. Falling back to whitelist mode.");
-        }
-    }
 
     private void runFormatSelfTest() {
         List<String> samples = List.of(
@@ -939,35 +803,4 @@ public final class MotdService {
     private record RequestContext(String ip, long nowMs) {
     }
 
-    private static final class VirtualHostResolver {
-        private static volatile Method cachedMethod;
-        private static volatile boolean resolved;
-
-        private VirtualHostResolver() {
-        }
-
-        private static Method resolveMethod(Class<?> eventClass) {
-            if (resolved) {
-                return cachedMethod;
-            }
-            resolved = true;
-            cachedMethod = findMethod(eventClass, "getVirtualHost");
-            if (cachedMethod != null) {
-                return cachedMethod;
-            }
-            cachedMethod = findMethod(eventClass, "getHostname");
-            return cachedMethod;
-        }
-
-        private static Method findMethod(Class<?> eventClass, String name) {
-            if (eventClass == null) {
-                return null;
-            }
-            try {
-                return eventClass.getMethod(name);
-            } catch (NoSuchMethodException e) {
-                return null;
-            }
-        }
-    }
 }
