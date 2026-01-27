@@ -139,8 +139,6 @@ Main configuration areas:
 * MOTD frames and animation speed
 * player count settings (fake players, hide counts, max override)
 * selection mode and sticky TTL
-* whitelist behavior for public maintenance/lockdown
-* optional routing by hostname
 
 ---
 
@@ -148,55 +146,6 @@ Main configuration areas:
 
 * Non-placeholder MOTD frames are parsed once and reused on each ping.
 * Placeholder replacement runs in a single pass and skips work when no tokens are present.
-
----
-
-## 🔒 Whitelist Behavior
-
-When the server whitelist is enabled and `whitelist.enabled=true`, BetterMOTD can present a public
-maintenance-style MOTD to everyone. This is useful because ping events do not provide a player name.
-
-* **OFFLINE_FOR_NON_WHITELISTED**: sets MOTD + player counts to appear offline.
-* **whitelistMotdProfile**: if set, uses a dedicated profile instead of offline mode.
-
----
-
-## ✅ Whitelist Gate (Real Join Enforcement)
-
-Server list pings are public, so BetterMOTD includes a lightweight whitelist gate that checks the
-real Bukkit whitelist during login. It uses a sync snapshot that is safe to read from
-`AsyncPlayerPreLoginEvent`.
-
-```yml
-whitelist:
-  enabled: true
-  mode: "OFFLINE_FOR_NON_WHITELISTED"
-  whitelistMotdProfile: ""
-  gateEnabled: true
-  gateRefreshSeconds: 5
-  gateKickMessage: "You are not whitelisted."
-```
-
-Notes:
-
-* The gate only enforces when **both** `gateEnabled=true` **and** the server whitelist is enabled.
-* `gateRefreshSeconds` controls how often the whitelist snapshot is rebuilt on the main thread.
-
----
-
-## 🌐 Virtual Host Routing
-
-Enable routing to map specific hostnames to profiles:
-
-```yml
-routing:
-  enabled: true
-  hostMap:
-    "play.example.net": "default"
-    "event.example.net": "event"
-```
-
-Routing is reflection-based and safe on both Paper and Spigot.
 
 ---
 
@@ -208,6 +157,11 @@ Routing is reflection-based and safe on both Paper and Spigot.
 ---
 
 ## 🧾 CHANGELOG
+
+### 1.5.0
+
+* **Breaking:** removed whitelist MOTD + whitelist gate support and virtual host routing.
+* Simplified configuration and reduced runtime branching for profile selection.
 
 ### 1.4.0
 

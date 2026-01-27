@@ -20,12 +20,10 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     private final JavaPlugin plugin;
     private final MotdService motdService;
-    private final WhitelistGate whitelistGate;
 
-    public CommandHandler(JavaPlugin plugin, MotdService motdService, WhitelistGate whitelistGate) {
+    public CommandHandler(JavaPlugin plugin, MotdService motdService) {
         this.plugin = plugin;
         this.motdService = motdService;
-        this.whitelistGate = whitelistGate;
     }
 
     @Override
@@ -159,11 +157,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             return betterPlugin.reloadAll();
         }
         plugin.reloadConfig();
-        MotdService.ReloadResult result = motdService.reload();
-        if (whitelistGate != null) {
-            whitelistGate.applyConfig(motdService.getWhitelistSettings());
-        }
-        return result;
+        return motdService.reload();
     }
 
     @Override

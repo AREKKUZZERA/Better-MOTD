@@ -22,8 +22,6 @@ public record ConfigModel(
         ColorFormat colorFormat,
         boolean debugSelfTest,
         boolean debugVerbose,
-        WhitelistSettings whitelist,
-        RoutingSettings routing,
         Map<String, Profile> profiles) {
     public static final long DEFAULT_FRAME_INTERVAL_MILLIS = 450L;
     public static final List<String> FALLBACK_MOTD_LINES = List.of("BetterMOTD", "1.21.x");
@@ -36,8 +34,6 @@ public record ConfigModel(
                 ColorFormat.AUTO,
                 false,
                 false,
-                WhitelistSettings.disabled(),
-                RoutingSettings.disabled(),
                 Collections.emptyMap());
     }
 
@@ -61,6 +57,7 @@ public record ConfigModel(
         boolean debugVerbose = cfg.getBoolean("debug.verbose", false);
         String activeProfile = str(cfg.getString("activeProfile"), "default");
         String fallbackIconPath = resolveFallbackIconPath(dataFolder);
+        logDeprecatedSections(cfg, logger, debugVerbose);
 
         Map<String, Profile> profiles = new LinkedHashMap<>();
         Map<String, Integer> presetCounts = new LinkedHashMap<>();
@@ -111,11 +108,6 @@ public record ConfigModel(
             activeProfile = fallbackId;
         }
 
-        WhitelistSettings whitelistSettings = parseWhitelist(cfg.getConfigurationSection("whitelist"),
-                dataFolder, logger, fallbackIconPath, warnings);
-        RoutingSettings routingSettings = parseRouting(cfg.getConfigurationSection("routing"), logger, warnings,
-                profiles);
-
         ConfigModel model = new ConfigModel(
                 activeProfile,
                 placeholdersEnabled,
@@ -123,8 +115,6 @@ public record ConfigModel(
                 colorFormat,
                 debugSelfTest,
                 debugVerbose,
-                whitelistSettings,
-                routingSettings,
                 Collections.unmodifiableMap(profiles));
 
         return new LoadResult(model, warnings.get(), legacy, presetCounts, fallbackProfiles);
@@ -414,93 +404,6 @@ public record ConfigModel(
         return parts[0] + "\n" + parts[1];
     }
 
-    private static WhitelistSettings parseWhitelist(ConfigurationSection section, File dataFolder, Logger logger,
-            String fallbackIconPath, AtomicInteger warnings) {
-        if (section == null) {
-            return WhitelistSettings.disabled();
-        }
-        boolean enabled = section.getBoolean("enabled", false);
-        String modeRaw = section.getString("mode", WhitelistMode.OFFLINE_FOR_NON_WHITELISTED.name());
-        WhitelistMode mode = WhitelistMode.from(modeRaw);
-        if (mode == null) {
-            warn(logger, warnings, "Unknown whitelist.mode '" + modeRaw + "'. Using OFFLINE_FOR_NON_WHITELISTED.");
-            mode = WhitelistMode.OFFLINE_FOR_NON_WHITELISTED;
-        }
-        String motdProfile = str(section.getString("whitelistMotdProfile"), "");
-        String legacyProfile = str(section.getString("nonWhitelistedMotdProfile"), "");
-        if (motdProfile.isBlank() && !legacyProfile.isBlank()) {
-            warn(logger, warnings,
-                    "whitelist.nonWhitelistedMotdProfile is deprecated. Please use whitelist.whitelistMotdProfile.");
-            motdProfile = legacyProfile;
-        } else if (!motdProfile.isBlank() && !legacyProfile.isBlank() && !motdProfile.equals(legacyProfile)) {
-            warn(logger, warnings,
-                    "Both whitelist.whitelistMotdProfile and whitelist.nonWhitelistedMotdProfile are set. "
-                            + "Using whitelist.whitelistMotdProfile.");
-        }
-        List<String> motd = normalizeMotdLines(section.getStringList("motd"), "whitelist", "whitelist", logger,
-                warnings);
-        if (motd.isEmpty()) {
-            motd = List.of("Whitelisted", "");
-        }
-        String icon = resolveOptionalIcon(section.getString("icon"), dataFolder, logger, fallbackIconPath, warnings,
-                "whitelist");
-        boolean gateEnabled = section.getBoolean("gateEnabled", false);
-        int gateRefreshSeconds = clampInt(section.getInt("gateRefreshSeconds", 5), 1, Integer.MAX_VALUE,
-                "whitelist.gateRefreshSeconds", "whitelist", logger, warnings);
-        String gateKickMessage = str(section.getString("gateKickMessage"), "You are not whitelisted.");
-        return new WhitelistSettings(enabled, mode, motdProfile, motd, icon, gateEnabled, gateRefreshSeconds,
-                gateKickMessage);
-    }
-
-    private static RoutingSettings parseRouting(ConfigurationSection section, Logger logger, AtomicInteger warnings,
-            Map<String, Profile> profiles) {
-        if (section == null) {
-            return RoutingSettings.disabled();
-        }
-        boolean enabled = section.getBoolean("enabled", false);
-        ConfigurationSection mapSection = section.getConfigurationSection("hostMap");
-        Map<String, String> hostMap = new LinkedHashMap<>();
-        if (mapSection != null) {
-            for (String host : mapSection.getKeys(false)) {
-                String profileId = str(mapSection.getString(host), "");
-                if (profileId.isBlank()) {
-                    continue;
-                }
-                hostMap.put(host.toLowerCase(Locale.ROOT), profileId);
-            }
-        }
-        if (!profiles.isEmpty()) {
-            for (Map.Entry<String, String> entry : hostMap.entrySet()) {
-                if (!profiles.containsKey(entry.getValue())) {
-                    warn(logger, warnings,
-                            "routing.hostMap entry '" + entry.getKey() + "' points to missing profile '"
-                                    + entry.getValue() + "'.");
-                }
-            }
-        }
-        return new RoutingSettings(enabled, Collections.unmodifiableMap(hostMap));
-    }
-
-    private static String resolveOptionalIcon(String raw, File dataFolder, Logger logger, String fallbackIconPath,
-            AtomicInteger warnings, String context) {
-        String icon = str(raw, null);
-        if (icon == null || icon.isBlank()) {
-            return null;
-        }
-        String normalized = IconCache.normalizeIconPath(icon);
-        if (normalized == null || dataFolder == null) {
-            return normalized;
-        }
-        File iconFile = new File(dataFolder, normalized);
-        if (!iconFile.isFile()) {
-            warn(logger, warnings,
-                    "Icon not found for " + context + ": " + iconFile.getPath() + ". Using "
-                            + fallbackIconPath + ".");
-            return fallbackIconPath;
-        }
-        return normalized;
-    }
-
     private static Profile fallbackProfile(String id, String fallbackIconPath) {
         Profile.AnimationSettings animation = new Profile.AnimationSettings(true, DEFAULT_FRAME_INTERVAL_MILLIS,
                 AnimationMode.GLOBAL);
@@ -595,6 +498,22 @@ public record ConfigModel(
         warnings.incrementAndGet();
     }
 
+    private static void logDeprecatedSections(FileConfiguration cfg, Logger logger, boolean debugVerbose) {
+        if (!debugVerbose) {
+            return;
+        }
+        List<String> deprecated = new ArrayList<>();
+        if (cfg.getConfigurationSection("whitelist") != null) {
+            deprecated.add("whitelist");
+        }
+        if (cfg.getConfigurationSection("routing") != null) {
+            deprecated.add("routing");
+        }
+        if (!deprecated.isEmpty()) {
+            logger.info("Ignoring deprecated sections: " + String.join(", ", deprecated));
+        }
+    }
+
     private static int clampInt(int value, int min, int max, String field, String profileId, Logger logger,
             AtomicInteger warnings) {
         if (value < min) {
@@ -610,37 +529,6 @@ public record ConfigModel(
 
     public record LoadResult(ConfigModel config, int warnings, boolean legacy, Map<String, Integer> presetCounts,
             Set<String> fallbackProfiles) {
-    }
-
-    public record WhitelistSettings(boolean enabled, WhitelistMode mode, String whitelistMotdProfile,
-            List<String> motdLines, String iconPath, boolean gateEnabled, int gateRefreshSeconds,
-            String gateKickMessage) {
-        public static WhitelistSettings disabled() {
-            return new WhitelistSettings(false, WhitelistMode.OFFLINE_FOR_NON_WHITELISTED, "",
-                    List.of("Whitelisted", ""), null, false, 5, "You are not whitelisted.");
-        }
-    }
-
-    public enum WhitelistMode {
-        OFFLINE_FOR_NON_WHITELISTED;
-
-        public static WhitelistMode from(String value) {
-            if (value == null) {
-                return null;
-            }
-            for (WhitelistMode mode : values()) {
-                if (mode.name().equalsIgnoreCase(value)) {
-                    return mode;
-                }
-            }
-            return null;
-        }
-    }
-
-    public record RoutingSettings(boolean enabled, Map<String, String> hostMap) {
-        public static RoutingSettings disabled() {
-            return new RoutingSettings(false, Collections.emptyMap());
-        }
     }
 
     public enum SelectionMode {

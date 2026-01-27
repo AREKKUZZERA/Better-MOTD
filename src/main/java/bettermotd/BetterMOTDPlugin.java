@@ -6,7 +6,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class BetterMOTDPlugin extends JavaPlugin {
 
     private MotdService motdService;
-    private WhitelistGate whitelistGate;
 
     @Override
     public void onEnable() {
@@ -15,17 +14,14 @@ public final class BetterMOTDPlugin extends JavaPlugin {
         ActiveProfileStore profileStore = new ActiveProfileStore(this);
         this.motdService = new MotdService(this, profileStore);
         MotdService.ReloadResult result = this.motdService.reload();
-        this.whitelistGate = new WhitelistGate(this);
-        this.whitelistGate.applyConfig(motdService.getWhitelistSettings());
 
         getServer().getPluginManager().registerEvents(
                 new ServerPingListener(motdService),
                 this);
-        getServer().getPluginManager().registerEvents(whitelistGate, this);
 
         PluginCommand command = getCommand("bettermotd");
         if (command != null) {
-            CommandHandler handler = new CommandHandler(this, motdService, whitelistGate);
+            CommandHandler handler = new CommandHandler(this, motdService);
             command.setExecutor(handler);
             command.setTabCompleter(handler);
         } else {
@@ -41,15 +37,10 @@ public final class BetterMOTDPlugin extends JavaPlugin {
         if (motdService != null) {
             motdService.shutdown();
         }
-        if (whitelistGate != null) {
-            whitelistGate.shutdown();
-        }
     }
 
     public MotdService.ReloadResult reloadAll() {
         reloadConfig();
-        MotdService.ReloadResult result = motdService.reload();
-        whitelistGate.applyConfig(motdService.getWhitelistSettings());
-        return result;
+        return motdService.reload();
     }
 }
