@@ -21,6 +21,7 @@ public final class IconCache {
     private final Map<String, CachedServerIcon> cache = new ConcurrentHashMap<>();
 
     private File iconsDir;
+    private volatile CachedServerIcon defaultIcon;
 
     public IconCache(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -30,7 +31,8 @@ public final class IconCache {
         cache.clear();
 
         ensureIconsDirectory();
-        ensureDefaultIconIfNoPngs();
+        ensureDefaultIconExists();
+        defaultIcon = loadIcon(DEFAULT_ICON_TARGET);
         warnIfIconsEmpty();
         preload(iconPaths);
     }
@@ -46,7 +48,11 @@ public final class IconCache {
             path = DEFAULT_ICON_TARGET;
         }
 
-        return cache.get(path);
+        CachedServerIcon icon = cache.get(path);
+        if (icon != null) {
+            return icon;
+        }
+        return defaultIcon;
     }
 
     public static String normalizeIconPath(String relPath) {
@@ -90,14 +96,9 @@ public final class IconCache {
         }
     }
 
-    private void ensureDefaultIconIfNoPngs() {
+    private void ensureDefaultIconExists() {
         if (iconsDir == null || !iconsDir.isDirectory()) {
             return;
-        }
-
-        File[] pngs = iconsDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".png"));
-        if (pngs != null && pngs.length > 0) {
-            return; // already has png files
         }
 
         File target = new File(plugin.getDataFolder(), DEFAULT_ICON_TARGET);

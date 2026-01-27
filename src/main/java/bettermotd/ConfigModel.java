@@ -21,6 +21,9 @@ public record ConfigModel(
         String fallbackIconPath,
         ColorFormat colorFormat,
         boolean debugSelfTest,
+        boolean debugVerbose,
+        WhitelistSettings whitelist,
+        RoutingSettings routing,
         Map<String, Profile> profiles) {
     public static final long DEFAULT_FRAME_INTERVAL_MILLIS = 450L;
     public static final List<String> FALLBACK_MOTD_LINES = List.of("BetterMOTD", "1.21.x");
@@ -32,6 +35,9 @@ public record ConfigModel(
                 null,
                 ColorFormat.AUTO,
                 false,
+                false,
+                WhitelistSettings.disabled(),
+                RoutingSettings.disabled(),
                 Collections.emptyMap());
     }
 
@@ -52,6 +58,7 @@ public record ConfigModel(
             colorFormat = ColorFormat.AUTO;
         }
         boolean debugSelfTest = cfg.getBoolean("debug.selfTest", false);
+        boolean debugVerbose = cfg.getBoolean("debug.verbose", false);
         String activeProfile = str(cfg.getString("activeProfile"), "default");
         String fallbackIconPath = resolveFallbackIconPath(dataFolder);
 
@@ -104,12 +111,20 @@ public record ConfigModel(
             activeProfile = fallbackId;
         }
 
+        WhitelistSettings whitelistSettings = parseWhitelist(cfg.getConfigurationSection("whitelist"),
+                dataFolder, logger, fallbackIconPath, warnings);
+        RoutingSettings routingSettings = parseRouting(cfg.getConfigurationSection("routing"), logger, warnings,
+                profiles);
+
         ConfigModel model = new ConfigModel(
                 activeProfile,
                 placeholdersEnabled,
                 fallbackIconPath,
                 colorFormat,
                 debugSelfTest,
+                debugVerbose,
+                whitelistSettings,
+                routingSettings,
                 Collections.unmodifiableMap(profiles));
 
         return new LoadResult(model, warnings.get(), legacy, presetCounts, fallbackProfiles);
@@ -128,6 +143,10 @@ public record ConfigModel(
 
         int stickyTtlSeconds = clampInt(section.getInt("stickyTtlSeconds", 10), 1, Integer.MAX_VALUE,
                 "stickyTtlSeconds", profileId, logger, warnings);
+        int stickyMaxEntries = clampInt(section.getInt("stickyMaxEntriesPerProfile", 10000), 1, Integer.MAX_VALUE,
+                "stickyMaxEntriesPerProfile", profileId, logger, warnings);
+        int stickyCleanupEvery = clampInt(section.getInt("stickyCleanupEveryNPings", 500), 1, Integer.MAX_VALUE,
+                "stickyCleanupEveryNPings", profileId, logger, warnings);
 
         boolean animEnabled = section.getBoolean("animation.enabled", true);
         long interval = section.getLong("animation.frameIntervalMillis", DEFAULT_FRAME_INTERVAL_MILLIS);
@@ -161,6 +180,8 @@ public record ConfigModel(
                 profileId,
                 selectionMode,
                 stickyTtlSeconds,
+                stickyMaxEntries,
+                stickyCleanupEvery,
                 animation,
                 playerCount,
                 List.copyOf(presets));
@@ -291,11 +312,7 @@ public record ConfigModel(
         if (dataFolder == null) {
             return null;
         }
-        File defaultIcon = new File(dataFolder, "icons/default.png");
-        if (defaultIcon.isFile()) {
-            return "icons/default.png";
-        }
-        return null;
+        return "icons/default.png";
     }
 
     private static List<Preset> parsePresetList(List<?> list, File dataFolder, Logger logger, String fallbackIconPath,
@@ -326,8 +343,9 @@ public record ConfigModel(
 
             String icon = resolveIcon(map.get("icon"), dataFolder, logger, fallbackIconPath, id, profileId, warnings);
 
-            List<String> motd = strList(map.get("motd"));
-            List<String> motdFrames = strList(map.get("motdFrames"));
+            List<String> motd = normalizeMotdLines(strList(map.get("motd")), profileId, id, logger, warnings);
+            List<String> motdFrames = normalizeFrames(strList(map.get("motdFrames")), profileId, id, logger,
+                    warnings);
 
             if (motd.isEmpty() && motdFrames.isEmpty()) {
                 warn(logger, warnings,
@@ -341,11 +359,138 @@ public record ConfigModel(
         return presets;
     }
 
+    private static List<String> normalizeMotdLines(List<String> lines, String profileId, String presetId,
+            Logger logger, AtomicInteger warnings) {
+        if (lines == null || lines.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String raw;
+        if (lines.size() == 1) {
+            raw = String.valueOf(lines.get(0));
+        } else {
+            if (lines.size() > 2) {
+                warn(logger, warnings,
+                        "Preset '" + presetId + "' in profile '" + profileId
+                                + "' motd has more than 2 lines. Using first two.");
+            }
+            raw = String.valueOf(lines.get(0)) + "\n" + String.valueOf(lines.get(1));
+        }
+        String normalized = normalizeFrameString(raw, profileId, presetId, -1, logger, warnings);
+        String[] parts = normalized.split("\n", -1);
+        List<String> out = new ArrayList<>(2);
+        out.add(parts[0]);
+        out.add(parts[1]);
+        return out;
+    }
+
+    private static List<String> normalizeFrames(List<String> frames, String profileId, String presetId,
+            Logger logger, AtomicInteger warnings) {
+        if (frames == null || frames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> out = new ArrayList<>(frames.size());
+        int index = 0;
+        for (String frame : frames) {
+            String normalized = normalizeFrameString(frame, profileId, presetId, index, logger, warnings);
+            out.add(normalized);
+            index++;
+        }
+        return out;
+    }
+
+    private static String normalizeFrameString(String raw, String profileId, String presetId, int frameIndex,
+            Logger logger, AtomicInteger warnings) {
+        String safe = raw == null ? "" : raw;
+        String[] parts = safe.split("\n", -1);
+        if (parts.length <= 1) {
+            return safe + "\n";
+        }
+        if (parts.length > 2) {
+            String location = frameIndex >= 0 ? "frame " + frameIndex : "motd";
+            warn(logger, warnings,
+                    "Preset '" + presetId + "' in profile '" + profileId + "' " + location
+                            + " has more than 2 lines. Using first two.");
+        }
+        return parts[0] + "\n" + parts[1];
+    }
+
+    private static WhitelistSettings parseWhitelist(ConfigurationSection section, File dataFolder, Logger logger,
+            String fallbackIconPath, AtomicInteger warnings) {
+        if (section == null) {
+            return WhitelistSettings.disabled();
+        }
+        boolean enabled = section.getBoolean("enabled", false);
+        String modeRaw = section.getString("mode", WhitelistMode.OFFLINE_FOR_NON_WHITELISTED.name());
+        WhitelistMode mode = WhitelistMode.from(modeRaw);
+        if (mode == null) {
+            warn(logger, warnings, "Unknown whitelist.mode '" + modeRaw + "'. Using OFFLINE_FOR_NON_WHITELISTED.");
+            mode = WhitelistMode.OFFLINE_FOR_NON_WHITELISTED;
+        }
+        String profile = str(section.getString("nonWhitelistedMotdProfile"), "");
+        List<String> motd = normalizeMotdLines(section.getStringList("motd"), "whitelist", "whitelist", logger,
+                warnings);
+        if (motd.isEmpty()) {
+            motd = List.of("Whitelisted", "");
+        }
+        String icon = resolveOptionalIcon(section.getString("icon"), dataFolder, logger, fallbackIconPath, warnings,
+                "whitelist");
+        return new WhitelistSettings(enabled, mode, profile, motd, icon);
+    }
+
+    private static RoutingSettings parseRouting(ConfigurationSection section, Logger logger, AtomicInteger warnings,
+            Map<String, Profile> profiles) {
+        if (section == null) {
+            return RoutingSettings.disabled();
+        }
+        boolean enabled = section.getBoolean("enabled", false);
+        ConfigurationSection mapSection = section.getConfigurationSection("hostMap");
+        Map<String, String> hostMap = new LinkedHashMap<>();
+        if (mapSection != null) {
+            for (String host : mapSection.getKeys(false)) {
+                String profileId = str(mapSection.getString(host), "");
+                if (profileId.isBlank()) {
+                    continue;
+                }
+                hostMap.put(host.toLowerCase(Locale.ROOT), profileId);
+            }
+        }
+        if (!profiles.isEmpty()) {
+            for (Map.Entry<String, String> entry : hostMap.entrySet()) {
+                if (!profiles.containsKey(entry.getValue())) {
+                    warn(logger, warnings,
+                            "routing.hostMap entry '" + entry.getKey() + "' points to missing profile '"
+                                    + entry.getValue() + "'.");
+                }
+            }
+        }
+        return new RoutingSettings(enabled, Collections.unmodifiableMap(hostMap));
+    }
+
+    private static String resolveOptionalIcon(String raw, File dataFolder, Logger logger, String fallbackIconPath,
+            AtomicInteger warnings, String context) {
+        String icon = str(raw, null);
+        if (icon == null || icon.isBlank()) {
+            return null;
+        }
+        String normalized = IconCache.normalizeIconPath(icon);
+        if (normalized == null || dataFolder == null) {
+            return normalized;
+        }
+        File iconFile = new File(dataFolder, normalized);
+        if (!iconFile.isFile()) {
+            warn(logger, warnings,
+                    "Icon not found for " + context + ": " + iconFile.getPath() + ". Using "
+                            + fallbackIconPath + ".");
+            return fallbackIconPath;
+        }
+        return normalized;
+    }
+
     private static Profile fallbackProfile(String id, String fallbackIconPath) {
         Profile.AnimationSettings animation = new Profile.AnimationSettings(true, DEFAULT_FRAME_INTERVAL_MILLIS,
                 AnimationMode.GLOBAL);
         Profile.PlayerCountSettings playerCount = defaultPlayerCount();
-        return new Profile(id, SelectionMode.STICKY_PER_IP, 10, animation, playerCount,
+        return new Profile(id, SelectionMode.STICKY_PER_IP, 10, 10000, 500, animation, playerCount,
                 List.of(Preset.fallback(fallbackIconPath)));
     }
 
@@ -450,6 +595,36 @@ public record ConfigModel(
 
     public record LoadResult(ConfigModel config, int warnings, boolean legacy, Map<String, Integer> presetCounts,
             Set<String> fallbackProfiles) {
+    }
+
+    public record WhitelistSettings(boolean enabled, WhitelistMode mode, String nonWhitelistedMotdProfile,
+            List<String> motdLines, String iconPath) {
+        public static WhitelistSettings disabled() {
+            return new WhitelistSettings(false, WhitelistMode.OFFLINE_FOR_NON_WHITELISTED, "", List.of("Whitelisted", ""),
+                    null);
+        }
+    }
+
+    public enum WhitelistMode {
+        OFFLINE_FOR_NON_WHITELISTED;
+
+        public static WhitelistMode from(String value) {
+            if (value == null) {
+                return null;
+            }
+            for (WhitelistMode mode : values()) {
+                if (mode.name().equalsIgnoreCase(value)) {
+                    return mode;
+                }
+            }
+            return null;
+        }
+    }
+
+    public record RoutingSettings(boolean enabled, Map<String, String> hostMap) {
+        public static RoutingSettings disabled() {
+            return new RoutingSettings(false, Collections.emptyMap());
+        }
     }
 
     public enum SelectionMode {

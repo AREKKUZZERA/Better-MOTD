@@ -6,6 +6,8 @@ public record Profile(
                 String id,
                 ConfigModel.SelectionMode selectionMode,
                 int stickyTtlSeconds,
+                int stickyMaxEntriesPerProfile,
+                int stickyCleanupEveryNPings,
                 AnimationSettings animation,
                 PlayerCountSettings playerCount,
                 List<Preset> presets) {

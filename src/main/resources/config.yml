@@ -1,7 +1,8 @@
 # BetterMOTD configuration
 activeProfile: "default"
 
-# Placeholder replacements in MOTD text (%online%, %max%, %version%, %preset%, %profile%).
+# Placeholder replacements in MOTD text:
+# %online%, %max%, %version%, %preset%, %profile%, %motd_frame%, %time%
 placeholders:
   enabled: true
 
@@ -17,12 +18,33 @@ colorFormat: "AUTO"
 # Enable internal formatter self-tests on startup (logs warnings only).
 debug:
   selfTest: false
+  verbose: false
+
+# Whitelist MOTD behavior (public/anonymous).
+whitelist:
+  enabled: false
+  mode: "OFFLINE_FOR_NON_WHITELISTED"
+  nonWhitelistedMotdProfile: ""
+  motd:
+    - "<gray>Whitelisted</gray>"
+    - "<gray>Please come back later.</gray>"
+  # Optional icon override (64x64 PNG).
+  icon: ""
+
+# Optional routing by hostname (virtual host).
+routing:
+  enabled: false
+  hostMap:
+    "play.example.net": "default"
+    "event.example.net": "event"
 
 profiles:
   default:
     # RANDOM | STICKY_PER_IP | HASHED_PER_IP | ROTATE
     selectionMode: "STICKY_PER_IP"
     stickyTtlSeconds: 10
+    stickyMaxEntriesPerProfile: 10000
+    stickyCleanupEveryNPings: 500
 
     animation:
       enabled: true

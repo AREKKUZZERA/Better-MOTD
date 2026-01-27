@@ -20,6 +20,7 @@ No NMS. No performance overhead.
 - 🖼️ Server icon switching per preset
 - 🎯 Weighted random, sticky-per-IP, hashed-per-IP, or rotating preset selection
 - 🧩 Default icon (`default.png`) generated on first startup
+- ⚡ Cached components for non-placeholder MOTD frames
 - ⚡ Lightweight, async-safe implementation
 
 ---
@@ -107,6 +108,12 @@ motd:
 
 Animated MOTD can be defined using `motdFrames` with a configurable `frameIntervalMillis`.
 
+Supported placeholders:
+
+* `%online%`, `%max%`, `%version%`
+* `%preset%`, `%profile%`
+* `%motd_frame%`, `%time%` (server local time, HH:mm)
+
 ---
 
 ## 🎛️ Presets & Selection Modes
@@ -132,8 +139,57 @@ Main configuration areas:
 * MOTD frames and animation speed
 * player count settings (fake players, hide counts, max override)
 * selection mode and sticky TTL
+* whitelist behavior for public maintenance/lockdown
+* optional routing by hostname
 
 ---
+
+## ⚡ Performance Notes
+
+* Non-placeholder MOTD frames are parsed once and reused on each ping.
+* Placeholder replacement runs in a single pass and skips work when no tokens are present.
+
+---
+
+## 🔒 Whitelist Behavior
+
+When the server whitelist is enabled and `whitelist.enabled=true`, BetterMOTD can present a public
+maintenance-style MOTD to everyone. This is useful because ping events do not provide a player name.
+
+* **OFFLINE_FOR_NON_WHITELISTED**: sets MOTD + player counts to appear offline.
+* **nonWhitelistedMotdProfile**: if set, uses a dedicated profile instead of offline mode.
+
+---
+
+## 🌐 Virtual Host Routing
+
+Enable routing to map specific hostnames to profiles:
+
+```yml
+routing:
+  enabled: true
+  hostMap:
+    "play.example.net": "default"
+    "event.example.net": "event"
+```
+
+Routing is reflection-based and safe on both Paper and Spigot.
+
+---
+
+## 📌 Compatibility Notes
+
+* Paper-only features (like setting online player count) are accessed via reflection.
+* The plugin remains fully compatible with Spigot without compile-time Paper dependencies.
+
+---
+
+## 🧾 CHANGELOG
+
+* Added sticky-per-IP cleanup safeguards and bounded eviction.
+* Added whitelist MOTD mode, hostname routing, and verbose debug logging.
+* Improved icon handling with guaranteed default icon caching.
+* Optimized placeholder handling and cached components for static frames.
 
 ## 📄 License
 
