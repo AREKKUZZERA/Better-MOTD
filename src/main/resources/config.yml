@@ -33,10 +33,10 @@ whitelist:
 
 # Optional routing by hostname (virtual host).
 routing:
-  enabled: false
+  enabled: true
   hostMap:
-    "play.example.net": "default"
-    "event.example.net": "event"
+    play: default
+    event: default
 
 profiles:
   default:
