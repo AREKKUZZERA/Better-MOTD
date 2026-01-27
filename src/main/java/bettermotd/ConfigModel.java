@@ -426,7 +426,17 @@ public record ConfigModel(
             warn(logger, warnings, "Unknown whitelist.mode '" + modeRaw + "'. Using OFFLINE_FOR_NON_WHITELISTED.");
             mode = WhitelistMode.OFFLINE_FOR_NON_WHITELISTED;
         }
-        String profile = str(section.getString("nonWhitelistedMotdProfile"), "");
+        String motdProfile = str(section.getString("whitelistMotdProfile"), "");
+        String legacyProfile = str(section.getString("nonWhitelistedMotdProfile"), "");
+        if (motdProfile.isBlank() && !legacyProfile.isBlank()) {
+            warn(logger, warnings,
+                    "whitelist.nonWhitelistedMotdProfile is deprecated. Please use whitelist.whitelistMotdProfile.");
+            motdProfile = legacyProfile;
+        } else if (!motdProfile.isBlank() && !legacyProfile.isBlank() && !motdProfile.equals(legacyProfile)) {
+            warn(logger, warnings,
+                    "Both whitelist.whitelistMotdProfile and whitelist.nonWhitelistedMotdProfile are set. "
+                            + "Using whitelist.whitelistMotdProfile.");
+        }
         List<String> motd = normalizeMotdLines(section.getStringList("motd"), "whitelist", "whitelist", logger,
                 warnings);
         if (motd.isEmpty()) {
@@ -434,7 +444,12 @@ public record ConfigModel(
         }
         String icon = resolveOptionalIcon(section.getString("icon"), dataFolder, logger, fallbackIconPath, warnings,
                 "whitelist");
-        return new WhitelistSettings(enabled, mode, profile, motd, icon);
+        boolean gateEnabled = section.getBoolean("gateEnabled", false);
+        int gateRefreshSeconds = clampInt(section.getInt("gateRefreshSeconds", 5), 1, Integer.MAX_VALUE,
+                "whitelist.gateRefreshSeconds", "whitelist", logger, warnings);
+        String gateKickMessage = str(section.getString("gateKickMessage"), "You are not whitelisted.");
+        return new WhitelistSettings(enabled, mode, motdProfile, motd, icon, gateEnabled, gateRefreshSeconds,
+                gateKickMessage);
     }
 
     private static RoutingSettings parseRouting(ConfigurationSection section, Logger logger, AtomicInteger warnings,
@@ -597,11 +612,12 @@ public record ConfigModel(
             Set<String> fallbackProfiles) {
     }
 
-    public record WhitelistSettings(boolean enabled, WhitelistMode mode, String nonWhitelistedMotdProfile,
-            List<String> motdLines, String iconPath) {
+    public record WhitelistSettings(boolean enabled, WhitelistMode mode, String whitelistMotdProfile,
+            List<String> motdLines, String iconPath, boolean gateEnabled, int gateRefreshSeconds,
+            String gateKickMessage) {
         public static WhitelistSettings disabled() {
-            return new WhitelistSettings(false, WhitelistMode.OFFLINE_FOR_NON_WHITELISTED, "", List.of("Whitelisted", ""),
-                    null);
+            return new WhitelistSettings(false, WhitelistMode.OFFLINE_FOR_NON_WHITELISTED, "",
+                    List.of("Whitelisted", ""), null, false, 5, "You are not whitelisted.");
         }
     }
 

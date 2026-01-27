@@ -157,7 +157,30 @@ When the server whitelist is enabled and `whitelist.enabled=true`, BetterMOTD ca
 maintenance-style MOTD to everyone. This is useful because ping events do not provide a player name.
 
 * **OFFLINE_FOR_NON_WHITELISTED**: sets MOTD + player counts to appear offline.
-* **nonWhitelistedMotdProfile**: if set, uses a dedicated profile instead of offline mode.
+* **whitelistMotdProfile**: if set, uses a dedicated profile instead of offline mode.
+
+---
+
+## ✅ Whitelist Gate (Real Join Enforcement)
+
+Server list pings are public, so BetterMOTD includes a lightweight whitelist gate that checks the
+real Bukkit whitelist during login. It uses a sync snapshot that is safe to read from
+`AsyncPlayerPreLoginEvent`.
+
+```yml
+whitelist:
+  enabled: true
+  mode: "OFFLINE_FOR_NON_WHITELISTED"
+  whitelistMotdProfile: ""
+  gateEnabled: true
+  gateRefreshSeconds: 5
+  gateKickMessage: "You are not whitelisted."
+```
+
+Notes:
+
+* The gate only enforces when **both** `gateEnabled=true` **and** the server whitelist is enabled.
+* `gateRefreshSeconds` controls how often the whitelist snapshot is rebuilt on the main thread.
 
 ---
 
@@ -185,6 +208,13 @@ Routing is reflection-based and safe on both Paper and Spigot.
 ---
 
 ## 🧾 CHANGELOG
+
+### 1.4.0
+
+* Added a real whitelist gate that enforces Bukkit whitelist status on join.
+* Clarified whitelist MOTD behavior as public-only with a dedicated whitelist profile key.
+* Improved snapshot caching and placeholder handling for better ping performance.
+* Cleaned up legacy configuration paths and documented new whitelist gate settings.
 
 * Added sticky-per-IP cleanup safeguards and bounded eviction.
 * Added whitelist MOTD mode, hostname routing, and verbose debug logging.

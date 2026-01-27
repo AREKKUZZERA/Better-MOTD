@@ -57,6 +57,7 @@ public final class MotdService {
     private final Set<String> formatWarnings = ConcurrentHashMap.newKeySet();
     private final Map<String, PresetCache> presetCache = new ConcurrentHashMap<>();
     private final AtomicBoolean routingWarned = new AtomicBoolean();
+    private final AtomicBoolean whitelistProfileWarned = new AtomicBoolean();
 
     private volatile ConfigModel config = ConfigModel.empty();
     private volatile String activeProfileId = "default";
@@ -81,12 +82,14 @@ public final class MotdService {
 
             iconCache.reload(collectIconPaths(config));
             formatWarnings.clear();
+            whitelistProfileWarned.set(false);
             rebuildPresetCache();
             stickyStates.clear();
             rotateCounters.clear();
             whitelistFrame = buildWhitelistFrame(config.whitelist());
 
             logSummary(result);
+            warnIfWhitelistProfileMissing();
             if (config.debugSelfTest()) {
                 runFormatSelfTest();
             }
@@ -118,6 +121,10 @@ public final class MotdService {
         return activeProfileId;
     }
 
+    public ConfigModel.WhitelistSettings getWhitelistSettings() {
+        return config.whitelist();
+    }
+
     public Set<String> getProfileIds() {
         return config.profiles().keySet();
     }
@@ -143,16 +150,12 @@ public final class MotdService {
             RequestContext ctx = new RequestContext(asIp(event.getAddress()), now);
             ConfigModel.WhitelistSettings whitelistSettings = config.whitelist();
             if (whitelistSettings.enabled() && Bukkit.hasWhitelist()) {
-                if (!whitelistSettings.nonWhitelistedMotdProfile().isBlank()) {
-                    Profile forced = config.profiles().get(whitelistSettings.nonWhitelistedMotdProfile());
+                if (!whitelistSettings.whitelistMotdProfile().isBlank()) {
+                    Profile forced = config.profiles().get(whitelistSettings.whitelistMotdProfile());
                     if (forced != null) {
                         applySelection(event, ctx, forced);
                         return;
                     }
-                    plugin.getLogger().warning(
-                            "whitelist.nonWhitelistedMotdProfile is set to '"
-                                    + whitelistSettings.nonWhitelistedMotdProfile()
-                                    + "' but no such profile exists. Falling back to whitelist mode.");
                 }
                 if (whitelistSettings.mode() == ConfigModel.WhitelistMode.OFFLINE_FOR_NON_WHITELISTED) {
                     applyWhitelistOffline(event, ctx, whitelistSettings);
@@ -294,13 +297,7 @@ public final class MotdService {
         if (mapped == null || mapped.isBlank()) {
             return activeProfileId;
         }
-        if (!config.profiles().containsKey(mapped)) {
-            plugin.getLogger().warning(
-                    "routing.hostMap matched '" + host + "' to missing profile '" + mapped
-                            + "'. Using active profile.");
-            return activeProfileId;
-        }
-        return mapped;
+        return config.profiles().containsKey(mapped) ? mapped : activeProfileId;
     }
 
     private SelectionResult selectPreset(Profile profile, RequestContext ctx, boolean count) {
@@ -858,6 +855,18 @@ public final class MotdService {
             plugin.getLogger().warning(
                     "Formatting failed for profile '" + profile.id() + "', preset '" + preset.id()
                             + "' using " + result.usedFormat() + ". Using plain text fallback.");
+        }
+    }
+
+    private void warnIfWhitelistProfileMissing() {
+        String profileId = config.whitelist().whitelistMotdProfile();
+        if (profileId == null || profileId.isBlank()) {
+            return;
+        }
+        if (!config.profiles().containsKey(profileId) && whitelistProfileWarned.compareAndSet(false, true)) {
+            plugin.getLogger().warning(
+                    "whitelist.whitelistMotdProfile is set to '" + profileId
+                            + "' but no such profile exists. Falling back to whitelist mode.");
         }
     }
 

@@ -20,10 +20,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     private final JavaPlugin plugin;
     private final MotdService motdService;
+    private final WhitelistGate whitelistGate;
 
-    public CommandHandler(JavaPlugin plugin, MotdService motdService) {
+    public CommandHandler(JavaPlugin plugin, MotdService motdService, WhitelistGate whitelistGate) {
         this.plugin = plugin;
         this.motdService = motdService;
+        this.whitelistGate = whitelistGate;
     }
 
     @Override
@@ -61,8 +63,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
     }
 
     private boolean handleReload(CommandSender sender) {
-        plugin.reloadConfig();
-        MotdService.ReloadResult result = motdService.reload();
+        MotdService.ReloadResult result = reloadAll();
         if (result.success()) {
             sender.sendMessage("BetterMOTD reloaded successfully (warnings: " + result.warnings() + ").");
         } else {
@@ -151,6 +152,18 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("Usage: /bettermotd <reload|profile|preview>");
+    }
+
+    private MotdService.ReloadResult reloadAll() {
+        if (plugin instanceof BetterMOTDPlugin betterPlugin) {
+            return betterPlugin.reloadAll();
+        }
+        plugin.reloadConfig();
+        MotdService.ReloadResult result = motdService.reload();
+        if (whitelistGate != null) {
+            whitelistGate.applyConfig(motdService.getWhitelistSettings());
+        }
+        return result;
     }
 
     @Override

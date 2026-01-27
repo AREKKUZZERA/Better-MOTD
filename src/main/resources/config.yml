@@ -24,12 +24,19 @@ debug:
 whitelist:
   enabled: false
   mode: "OFFLINE_FOR_NON_WHITELISTED"
+  # Public whitelist profile for everyone when the server whitelist is enabled.
+  whitelistMotdProfile: ""
+  # Legacy key (deprecated): nonWhitelistedMotdProfile
   nonWhitelistedMotdProfile: ""
   motd:
     - "<gray>Whitelisted</gray>"
     - "<gray>Please come back later.</gray>"
   # Optional icon override (64x64 PNG).
   icon: ""
+  # Whitelist gate (real join enforcement)
+  gateEnabled: false
+  gateRefreshSeconds: 5
+  gateKickMessage: "You are not whitelisted."
 
 # Optional routing by hostname (virtual host).
 routing:
