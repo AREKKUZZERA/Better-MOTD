@@ -1,7 +1,5 @@
 package bettermotd;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.kyori.adventure.text.Component;
@@ -16,78 +14,53 @@ public final class TextFormatService {
     private static final Pattern MINIMESSAGE_TAG_PATTERN =
             Pattern.compile("<(?:/?[a-z][a-z0-9_:-]*(?::[^>]+)?|#[0-9a-fA-F]{6})>", Pattern.CASE_INSENSITIVE);
 
-    private final MiniMessage miniMessage;
-    private final LegacyComponentSerializer legacySectionSerializer;
-    private final LegacyComponentSerializer legacyAmpersandSerializer;
-
-    public TextFormatService() {
-        this.miniMessage = MiniMessage.miniMessage();
-        this.legacySectionSerializer = LegacyComponentSerializer.builder()
-                .character('§')
-                .hexColors()
-                .useUnusualXRepeatedCharacterHexFormat()
-                .build();
-        this.legacyAmpersandSerializer = LegacyComponentSerializer.builder()
-                .character('&')
-                .hexColors()
-                .useUnusualXRepeatedCharacterHexFormat()
-                .build();
-    }
-
-    public Component parseToComponent(String input, ColorFormat format) {
-        return parseToComponentDetailed(input, format).component();
-    }
-
-    public Component parseLinesToComponent(List<String> lines, ColorFormat format) {
-        return parseLinesToComponentDetailed(lines, format).component();
-    }
+    private final MiniMessage miniMessage = MiniMessage.miniMessage();
+    private final LegacyComponentSerializer legacySectionSerializer = LegacyComponentSerializer.builder()
+            .character('§')
+            .hexColors()
+            .useUnusualXRepeatedCharacterHexFormat()
+            .build();
+    private final LegacyComponentSerializer legacyAmpersandSerializer = LegacyComponentSerializer.builder()
+            .character('&')
+            .hexColors()
+            .useUnusualXRepeatedCharacterHexFormat()
+            .build();
 
     public ParseResult parseToComponentDetailed(String input, ColorFormat format) {
         if (input == null) {
             return new ParseResult(Component.empty(), format, false);
         }
-        if (input.contains("\n")) {
-            List<String> lines = splitLines(input);
-            return parseLinesToComponentDetailed(lines, format);
+        int nl = input.indexOf('\n');
+        if (nl < 0) {
+            return parseSingleLine(input, format);
         }
-        return parseSingleLine(input, format);
-    }
-
-    public ParseResult parseLinesToComponentDetailed(List<String> lines, ColorFormat format) {
-        if (lines == null || lines.isEmpty()) {
-            return new ParseResult(Component.empty(), format, false);
-        }
-        String combined = String.join("\n", lines);
-        ColorFormat resolved = resolveFormat(combined, format);
-        List<Component> components = new ArrayList<>(lines.size());
-        boolean fallback = false;
-        for (String line : lines) {
-            ParseResult lineResult = parseSingleLine(line, resolved);
-            components.add(lineResult.component());
-            fallback = fallback || lineResult.fallbackUsed();
-        }
-        Component joined = Component.join(JoinConfiguration.newlines(), components);
-        return new ParseResult(joined, resolved, fallback);
+        // Multi-line: split and join
+        String line1 = input.substring(0, nl);
+        String line2 = input.substring(nl + 1);
+        ColorFormat resolved = resolveFormat(input, format);
+        ParseResult r1 = parseSingleLine(line1, resolved);
+        ParseResult r2 = parseSingleLine(line2, resolved);
+        Component joined = Component.join(JoinConfiguration.newlines(), r1.component(), r2.component());
+        return new ParseResult(joined, resolved, r1.fallbackUsed() || r2.fallbackUsed());
     }
 
     public String serializeToLegacy(Component component) {
-        if (component == null) {
-            return "";
-        }
-        return legacySectionSerializer.serialize(component);
+        return component == null ? "" : legacySectionSerializer.serialize(component);
     }
 
+    /** Converts &#RRGGBB hex codes to MiniMessage <#RRGGBB> format. */
     public String convertAmpersandHexToMiniMessage(String input) {
         if (input == null || input.indexOf('&') < 0) {
             return input;
         }
         Matcher matcher = AMPERSAND_HEX_PATTERN.matcher(input);
-        StringBuffer buffer = new StringBuffer(input.length());
-        while (matcher.find()) {
-            String hex = matcher.group(1);
-            String replacement = "<#" + hex + ">";
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
+        if (!matcher.find()) {
+            return input;
         }
+        StringBuffer buffer = new StringBuffer(input.length() + 16);
+        do {
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement("<#" + matcher.group(1) + ">"));
+        } while (matcher.find());
         matcher.appendTail(buffer);
         return buffer.toString();
     }
@@ -122,27 +95,11 @@ public final class TextFormatService {
             return ColorFormat.AUTO;
         }
         String trimmed = input.trim();
-        if (looksLikeJson(trimmed)) {
-            return ColorFormat.JSON;
-        }
-        if (looksLikeMiniMessage(trimmed)) {
-            return ColorFormat.MINI_MESSAGE;
-        }
-        if (AMPERSAND_HEX_PATTERN.matcher(trimmed).find()) {
-            return ColorFormat.HEX_AMPERSAND;
-        }
-        if (trimmed.contains("§x§")) {
-            return ColorFormat.LEGACY_SECTION;
-        }
-        if (trimmed.contains("&x&")) {
-            return ColorFormat.LEGACY_AMPERSAND;
-        }
-        if (trimmed.indexOf('§') >= 0) {
-            return ColorFormat.LEGACY_SECTION;
-        }
-        if (trimmed.indexOf('&') >= 0) {
-            return ColorFormat.LEGACY_AMPERSAND;
-        }
+        if (looksLikeJson(trimmed)) return ColorFormat.JSON;
+        if (looksLikeMiniMessage(trimmed)) return ColorFormat.MINI_MESSAGE;
+        if (AMPERSAND_HEX_PATTERN.matcher(trimmed).find()) return ColorFormat.HEX_AMPERSAND;
+        if (trimmed.contains("§x§") || trimmed.indexOf('§') >= 0) return ColorFormat.LEGACY_SECTION;
+        if (trimmed.contains("&x&") || trimmed.indexOf('&') >= 0) return ColorFormat.LEGACY_AMPERSAND;
         return strictMiniMessage ? ColorFormat.AUTO_STRICT : ColorFormat.AUTO;
     }
 
@@ -151,22 +108,10 @@ public final class TextFormatService {
     }
 
     private boolean looksLikeJson(String trimmed) {
-        if (!trimmed.startsWith("{")) {
-            return false;
-        }
-        if (!trimmed.endsWith("}")) {
-            return false;
-        }
-        return trimmed.contains("\"text\"") || trimmed.contains("\"extra\"") || trimmed.contains("\"color\"");
-    }
-
-    private List<String> splitLines(String input) {
-        String[] parts = input.split("\n", -1);
-        List<String> lines = new ArrayList<>(parts.length);
-        for (String part : parts) {
-            lines.add(part);
-        }
-        return lines;
+        return trimmed.length() > 2
+                && trimmed.charAt(0) == '{'
+                && trimmed.charAt(trimmed.length() - 1) == '}'
+                && (trimmed.contains("\"text\"") || trimmed.contains("\"extra\"") || trimmed.contains("\"color\""));
     }
 
     public record ParseResult(Component component, ColorFormat usedFormat, boolean fallbackUsed) {}

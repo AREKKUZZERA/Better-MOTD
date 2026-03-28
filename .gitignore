@@ -10,6 +10,7 @@
 .classpath
 .project
 /.settings/
+.vscode/
 
 # OS cruft
 .DS_Store

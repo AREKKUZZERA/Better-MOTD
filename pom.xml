@@ -5,18 +5,27 @@
 
   <groupId>bettermotd</groupId>
   <artifactId>BetterMOTD</artifactId>
-  <version>1.4.0</version>
+  <version>1.6.0</version>
 
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.11.3</junit.version>
+
+    <!-- Paper API version -->
+    <paper.api.version>1.21.11-R0.1-SNAPSHOT</paper.api.version>
   </properties>
 
   <repositories>
     <repository>
       <id>papermc</id>
       <url>https://repo.papermc.io/repository/maven-public/</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
     </repository>
   </repositories>
 
@@ -24,9 +33,10 @@
     <dependency>
       <groupId>io.papermc.paper</groupId>
       <artifactId>paper-api</artifactId>
-      <version>1.21.11-R0.1-SNAPSHOT</version>
+      <version>${paper.api.version}</version>
       <scope>provided</scope>
     </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -37,7 +47,9 @@
 
   <build>
     <finalName>${project.artifactId}-${project.version}</finalName>
+
     <resources>
+      <!-- Filter ONLY the config files that may contain ${project.version}, etc -->
       <resource>
         <directory>src/main/resources</directory>
         <filtering>true</filtering>
@@ -47,6 +59,8 @@
           <include>config.schema.json</include>
         </includes>
       </resource>
+
+      <!-- Copy the rest without filtering -->
       <resource>
         <directory>src/main/resources</directory>
         <filtering>false</filtering>
@@ -64,17 +78,24 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
+          <release>${maven.compiler.release}</release>
           <encoding>${project.build.sourceEncoding}</encoding>
+
+          <!-- Disable annotation processing to silence "No processor claimed ..." -->
+          <proc>none</proc>
+
           <compilerArgs>
             <arg>-Xlint:all</arg>
           </compilerArgs>
         </configuration>
       </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.2</version>
       </plugin>
+
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
@@ -86,6 +107,16 @@
             </palantirJavaFormat>
           </java>
         </configuration>
+        <executions>
+          <!-- Run formatting check during "verify" (CI-friendly) -->
+          <execution>
+            <id>spotless-check</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

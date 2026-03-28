@@ -111,9 +111,9 @@ public final class PlayerCountService {
 
         if (selectionMode == ConfigModel.SelectionMode.STICKY_PER_IP && ip != null) {
             long bucket = nowMs / 60000L; // 1-minute buckets for stability
-            long seed = Objects.hash(ip, bucket);
-            java.util.Random random = new java.util.Random(seed);
-            return random.nextInt(high - low + 1) + low;
+            long seed = (long) Objects.hash(ip, bucket);
+            // SplittableRandom is cheaper than new Random for one-shot seeded use
+            return (int) (new java.util.SplittableRandom(seed).nextLong(high - low + 1) + low);
         }
 
         return ThreadLocalRandom.current().nextInt(low, high + 1);

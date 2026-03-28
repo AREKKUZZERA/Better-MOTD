@@ -1,8 +1,6 @@
 package bettermotd;
 
-import java.util.ArrayList;
 import java.util.Deque;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiPredicate;
 
@@ -14,47 +12,26 @@ final class StickyStateSupport {
             Map<K, V> entries, long nowMs, long ttlMs, int batchLimit, BiPredicate<V, Long> isValid) {
         int checked = 0;
         for (Map.Entry<K, V> entry : entries.entrySet()) {
-            if (checked >= batchLimit) {
-                break;
-            }
-            checked++;
+            if (checked++ >= batchLimit) break;
             if (!isValid.test(entry.getValue(), nowMs - ttlMs)) {
                 entries.remove(entry.getKey(), entry.getValue());
             }
         }
     }
 
+    /**
+     * Evicts oldest entries from the insertion-order deque until entries.size() <= maxEntries.
+     * The deque and map are kept in sync by callers (see createStickyEntry).
+     */
     static <K, V> void enforceLimit(Map<K, V> entries, Deque<K> order, int maxEntries, int evictionBatch) {
-        if (maxEntries <= 0 || entries.size() <= maxEntries) {
-            return;
-        }
+        if (maxEntries <= 0 || entries.size() <= maxEntries) return;
 
         int evicted = 0;
         while (entries.size() > maxEntries && evicted < evictionBatch) {
             K key = order.pollFirst();
-            if (key == null) {
-                break;
-            }
-            if (entries.remove(key) != null) {
-                evicted++;
-            }
+            if (key == null) break;
+            if (entries.remove(key) != null) evicted++;
         }
-
-        if (entries.size() > maxEntries) {
-            List<K> candidates = new ArrayList<>(evictionBatch);
-            for (K key : entries.keySet()) {
-                candidates.add(key);
-                if (candidates.size() >= evictionBatch) {
-                    break;
-                }
-            }
-            candidates.sort((left, right) -> String.valueOf(left).compareTo(String.valueOf(right)));
-            for (K key : candidates) {
-                if (entries.size() <= maxEntries) {
-                    break;
-                }
-                entries.remove(key);
-            }
-        }
+        // No fallback: if order is exhausted the map will self-correct on next cleanup cycle.
     }
 }

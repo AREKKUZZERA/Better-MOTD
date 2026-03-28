@@ -29,9 +29,6 @@ public final class MotdService {
     private static final int STICKY_EVICTION_BATCH = 200;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
-    private static final String[] SUPPORTED_PLACEHOLDERS =
-            new String[] {"%online%", "%max%", "%version%", "%preset%", "%profile%", "%motd_frame%", "%time%"};
-
     private final JavaPlugin plugin;
     private final ActiveProfileStore profileStore;
     private final IconCache iconCache;
@@ -299,7 +296,7 @@ public final class MotdService {
         if (ip == null) {
             return null;
         }
-        int frameSeed = ensureFrameSeed ? computeFrameSeed(profileId, now) : 0;
+        int frameSeed = ensureFrameSeed ? ThreadLocalRandom.current().nextInt() : 0;
         StickyEntry fresh = new StickyEntry(preset, now, frameSeed);
         StickyProfileState state = stickyState(profileId);
         StickyEntry previous = state.entries().put(ip, fresh);
@@ -340,7 +337,7 @@ public final class MotdService {
             return Preset.fallback(config.fallbackIconPath());
         }
         if (ip == null) {
-            int idx = (int) Math.floorMod(System.nanoTime(), presets.size());
+            int idx = Math.floorMod(System.nanoTime(), presets.size());
             return presets.get(idx);
         }
         int idx = Math.floorMod(ip.hashCode(), presets.size());
@@ -361,9 +358,8 @@ public final class MotdService {
         for (Preset p : presets) {
             total += Math.max(1, p.weight());
         }
-
-        int r = (int) Math.floorMod(seed, total);
-
+        // Use int modulo explicitly to avoid long/int ambiguity
+        int r = Math.floorMod((int) seed, total);
         int acc = 0;
         for (Preset p : presets) {
             acc += Math.max(1, p.weight());
@@ -395,15 +391,15 @@ public final class MotdService {
         TextFormatService.ParseResult parsed;
 
         if (frame.hasPlaceholders() && config.placeholdersEnabled()) {
+            // Dynamic path: substitute placeholders then parse fresh
             PlaceholderValues values = buildPlaceholderValues(preset.id(), profileId, counts, frameIndex, ctx);
-            String replaced = applyPlaceholders(raw, values);
-            parsed = textFormatService.parseToComponentDetailed(replaced, config.colorFormat());
-        } else if (frame.hasPlaceholders() && !config.placeholdersEnabled()) {
-            parsed = textFormatService.parseToComponentDetailed(raw, config.colorFormat());
+            parsed = textFormatService.parseToComponentDetailed(applyPlaceholders(raw, values), config.colorFormat());
         } else if (frame.cachedComponent() != null) {
+            // Fast path: use pre-parsed cached component
             parsed = new TextFormatService.ParseResult(
                     frame.cachedComponent(), frame.usedFormat(), frame.fallbackUsed());
         } else {
+            // Fallback: parse raw (e.g. placeholders present but disabled, or cache miss)
             parsed = textFormatService.parseToComponentDetailed(raw, config.colorFormat());
         }
 
@@ -438,53 +434,37 @@ public final class MotdService {
         return (int) ((ctx.nowMs() / interval) % size);
     }
 
-    private int computeFrameSeed(String profileId, long nowMs) {
-        Profile profile = resolveProfile(profileId);
-        long interval = profile.animation().frameIntervalMillis();
-        return (int) (nowMs / interval);
-    }
-
     private String applyPlaceholders(String input, PlaceholderValues values) {
         if (input == null || input.indexOf('%') < 0) {
             return input;
         }
-        StringBuilder out = new StringBuilder(input.length() + 16);
-        int len = input.length();
-        for (int i = 0; i < len; i++) {
-            char c = input.charAt(i);
-            if (c != '%') {
-                out.append(c);
-                continue;
-            }
-            String replacement = null;
-            if (matches(input, i, "%online%")) {
-                replacement = values.online();
-                i += "%online%".length() - 1;
-            } else if (matches(input, i, "%max%")) {
-                replacement = values.max();
-                i += "%max%".length() - 1;
-            } else if (matches(input, i, "%version%")) {
-                replacement = values.version();
-                i += "%version%".length() - 1;
-            } else if (matches(input, i, "%preset%")) {
-                replacement = values.preset();
-                i += "%preset%".length() - 1;
-            } else if (matches(input, i, "%profile%")) {
-                replacement = values.profile();
-                i += "%profile%".length() - 1;
-            } else if (matches(input, i, "%motd_frame%")) {
-                replacement = values.motdFrame();
-                i += "%motd_frame%".length() - 1;
-            } else if (matches(input, i, "%time%")) {
-                replacement = values.time();
-                i += "%time%".length() - 1;
-            }
+        // Token table ordered by occurrence likelihood
+        String[] tokens = {"%online%", "%max%", "%version%", "%preset%", "%profile%", "%motd_frame%", "%time%"};
+        String[] replacements = {
+            values.online(),
+            values.max(),
+            values.version(),
+            values.preset(),
+            values.profile(),
+            values.motdFrame(),
+            values.time()
+        };
 
-            if (replacement != null) {
-                out.append(replacement);
-            } else {
-                out.append('%');
+        StringBuilder out = new StringBuilder(input.length() + 32);
+        int len = input.length();
+        outer:
+        for (int i = 0; i < len; i++) {
+            if (input.charAt(i) == '%') {
+                for (int t = 0; t < tokens.length; t++) {
+                    String token = tokens[t];
+                    if (input.regionMatches(i, token, 0, token.length())) {
+                        out.append(replacements[t]);
+                        i += token.length() - 1;
+                        continue outer;
+                    }
+                }
             }
+            out.append(input.charAt(i));
         }
         return out.toString();
     }
@@ -603,7 +583,8 @@ public final class MotdService {
         if (input == null || input.indexOf('%') < 0) {
             return false;
         }
-        for (String token : SUPPORTED_PLACEHOLDERS) {
+        for (String token :
+                new String[] {"%online%", "%max%", "%version%", "%preset%", "%profile%", "%motd_frame%", "%time%"}) {
             if (input.contains(token)) {
                 return true;
             }
@@ -625,16 +606,8 @@ public final class MotdService {
         return new PlaceholderValues(online, max, version, presetId, profileId, String.valueOf(frameIndex), time);
     }
 
-    private boolean matches(String input, int index, String token) {
-        int end = index + token.length();
-        if (end > input.length()) {
-            return false;
-        }
-        return input.regionMatches(index, token, 0, token.length());
-    }
-
     private Collection<String> collectIconPaths(ConfigModel config) {
-        Set<String> paths = ConcurrentHashMap.newKeySet();
+        Set<String> paths = new java.util.HashSet<>();
         paths.add("icons/default.png");
         if (config.fallbackIconPath() != null) {
             paths.add(config.fallbackIconPath());
