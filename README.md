@@ -168,8 +168,8 @@ A machine-readable schema is provided at `src/main/resources/config.schema.json`
 
 ## 📌 Compatibility Notes
 
-* Paper-only features (like setting online player count) are accessed via reflection.
-* The plugin remains fully compatible with Spigot without compile-time Paper dependencies.
+* Paper features are used directly via the Paper API when available.
+* Fully compatible with Spigot fallback.
 
 ---
 
