@@ -68,15 +68,14 @@ public final class TextFormatService {
     private ParseResult parseSingleLine(String input, ColorFormat format) {
         ColorFormat resolved = resolveFormat(input, format);
         try {
-            Component component =
-                    switch (resolved) {
-                        case MINI_MESSAGE -> miniMessage.deserialize(input);
-                        case HEX_AMPERSAND -> miniMessage.deserialize(convertAmpersandHexToMiniMessage(input));
-                        case JSON -> GsonComponentSerializer.gson().deserialize(input);
-                        case LEGACY_SECTION -> legacySectionSerializer.deserialize(input);
-                        case LEGACY_AMPERSAND -> legacyAmpersandSerializer.deserialize(input);
-                        case AUTO, AUTO_STRICT -> Component.text(input);
-                    };
+            Component component = switch (resolved) {
+                case MINI_MESSAGE  -> miniMessage.deserialize(input);
+                case HEX_AMPERSAND -> miniMessage.deserialize(convertAmpersandHexToMiniMessage(input));
+                case JSON          -> GsonComponentSerializer.gson().deserialize(input);
+                case LEGACY_SECTION  -> legacySectionSerializer.deserialize(input);
+                case LEGACY_AMPERSAND -> legacyAmpersandSerializer.deserialize(input);
+                case AUTO, AUTO_STRICT -> Component.text(input);
+            };
             return new ParseResult(component, resolved, false);
         } catch (Exception e) {
             return new ParseResult(Component.text(input), resolved, true);
@@ -95,8 +94,8 @@ public final class TextFormatService {
             return ColorFormat.AUTO;
         }
         String trimmed = input.trim();
-        if (looksLikeJson(trimmed)) return ColorFormat.JSON;
-        if (looksLikeMiniMessage(trimmed)) return ColorFormat.MINI_MESSAGE;
+        if (looksLikeJson(trimmed))             return ColorFormat.JSON;
+        if (looksLikeMiniMessage(trimmed))       return ColorFormat.MINI_MESSAGE;
         if (AMPERSAND_HEX_PATTERN.matcher(trimmed).find()) return ColorFormat.HEX_AMPERSAND;
         if (trimmed.contains("§x§") || trimmed.indexOf('§') >= 0) return ColorFormat.LEGACY_SECTION;
         if (trimmed.contains("&x&") || trimmed.indexOf('&') >= 0) return ColorFormat.LEGACY_AMPERSAND;

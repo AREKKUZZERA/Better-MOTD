@@ -1,7 +1,6 @@
 package bettermotd;
 
 import com.destroystokyo.paper.event.server.PaperServerListPingEvent;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
@@ -75,18 +74,18 @@ public final class PaperPingAdapter {
         }
     }
 
-    public boolean applyDisableHover(ServerListPingEvent event) {
-        if (!PAPER_AVAILABLE || !(event instanceof PaperServerListPingEvent paper)) {
-            return false;
-        }
-        try {
-            paper.setPlayerSample(List.of());
-            return true;
-        } catch (Exception e) {
-            warnOnce(warnedHover, "Failed to disable hover via Paper API: " + e.getMessage());
-            return false;
-        }
+public boolean applyDisableHover(ServerListPingEvent event) {
+    if (!PAPER_AVAILABLE || !(event instanceof PaperServerListPingEvent paper)) {
+        return false;
     }
+    try {
+        paper.getListedPlayers().clear();
+        return true;
+    } catch (Exception e) {
+        warnOnce(warnedHover, "Failed to disable hover via Paper API: " + e.getMessage());
+        return false;
+    }
+}
 
     private void warnOnce(AtomicBoolean flag, String message) {
         if (logger != null && flag.compareAndSet(false, true)) {
