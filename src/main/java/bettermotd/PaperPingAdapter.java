@@ -74,18 +74,18 @@ public final class PaperPingAdapter {
         }
     }
 
-public boolean applyDisableHover(ServerListPingEvent event) {
-    if (!PAPER_AVAILABLE || !(event instanceof PaperServerListPingEvent paper)) {
-        return false;
+    public boolean applyDisableHover(ServerListPingEvent event) {
+        if (!PAPER_AVAILABLE || !(event instanceof PaperServerListPingEvent paper)) {
+            return false;
+        }
+        try {
+            paper.getListedPlayers().clear();
+            return true;
+        } catch (Exception e) {
+            warnOnce(warnedHover, "Failed to disable hover via Paper API: " + e.getMessage());
+            return false;
+        }
     }
-    try {
-        paper.getListedPlayers().clear();
-        return true;
-    } catch (Exception e) {
-        warnOnce(warnedHover, "Failed to disable hover via Paper API: " + e.getMessage());
-        return false;
-    }
-}
 
     private void warnOnce(AtomicBoolean flag, String message) {
         if (logger != null && flag.compareAndSet(false, true)) {
