@@ -17,6 +17,7 @@ public record Profile(
     public record PlayerCountSettings(
             boolean disableHover,
             boolean hidePlayerCount,
+            List<String> hoverLines,
             FakePlayersSettings fakePlayers,
             JustXMoreSettings justXMore,
             MaxPlayersSettings maxPlayers) {}

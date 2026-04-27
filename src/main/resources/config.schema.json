@@ -2,28 +2,304 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "BetterMOTD config",
   "type": "object",
+  "additionalProperties": false,
   "properties": {
-    "activeProfile": {"type": "string", "default": "default"},
-    "placeholders": {
-      "type": "object",
-      "properties": {
-        "enabled": {"type": "boolean", "default": true}
-      }
-    },
     "colorFormat": {
       "type": "string",
       "enum": ["AUTO", "AUTO_STRICT", "MINI_MESSAGE", "HEX_AMPERSAND", "JSON", "LEGACY_SECTION", "LEGACY_AMPERSAND"],
       "default": "AUTO"
     },
+    "activeProfile": {
+      "type": "string",
+      "default": "default"
+    },
+    "placeholders": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "placeholderAPI": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "maintenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "profile": {
+          "type": "string",
+          "default": "maintenance"
+        },
+        "bypassPermission": {
+          "type": "string",
+          "default": "bettermotd.maintenance.bypass"
+        },
+        "kickMessage": {
+          "type": "string",
+          "default": "<red>Server is in maintenance mode.</red>"
+        }
+      }
+    },
+    "debug": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "selfTest": {
+          "type": "boolean",
+          "default": false
+        },
+        "verbose": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
     "profiles": {
       "type": "object",
+      "minProperties": 1,
       "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "selectionMode": {"type": "string", "enum": ["RANDOM", "STICKY_PER_IP", "HASHED_PER_IP", "ROTATE"]},
-          "stickyTtlSeconds": {"type": "integer", "minimum": 1},
-          "stickyMaxEntriesPerProfile": {"type": "integer", "minimum": 1},
-          "stickyCleanupEveryNPings": {"type": "integer", "minimum": 1}
+        "$ref": "#/$defs/profile"
+      }
+    }
+  },
+  "required": ["activeProfile", "profiles"],
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "selectionMode": {
+          "type": "string",
+          "enum": ["RANDOM", "STICKY_PER_IP", "HASHED_PER_IP", "ROTATE"],
+          "default": "STICKY_PER_IP"
+        },
+        "stickyTtlSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10
+        },
+        "stickyMaxEntriesPerProfile": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10000
+        },
+        "stickyCleanupEveryNPings": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 500
+        },
+        "animation": {
+          "$ref": "#/$defs/animation"
+        },
+        "playerCount": {
+          "$ref": "#/$defs/playerCount"
+        },
+        "presets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/preset"
+          }
+        }
+      },
+      "required": ["presets"]
+    },
+    "animation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "frameIntervalMillis": {
+          "type": "integer",
+          "minimum": 100,
+          "default": 600
+        },
+        "motdAnimationMode": {
+          "type": "string",
+          "enum": ["GLOBAL", "PER_IP_STICKY"],
+          "default": "GLOBAL"
+        }
+      }
+    },
+    "playerCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "disableHover": {
+          "type": "boolean",
+          "default": false
+        },
+        "hidePlayerCount": {
+          "type": "boolean",
+          "default": false
+        },
+        "hoverLines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "fakePlayers": {
+          "$ref": "#/$defs/fakePlayers"
+        },
+        "justXMore": {
+          "$ref": "#/$defs/justXMore"
+        },
+        "maxPlayers": {
+          "$ref": "#/$defs/maxPlayers"
+        }
+      }
+    },
+    "fakePlayers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["static", "random", "percent", "STATIC", "RANDOM", "PERCENT"],
+          "default": "static"
+        },
+        "value": {
+          "type": "string",
+          "default": "0",
+          "examples": ["5", "2:8", "25%"]
+        }
+      }
+    },
+    "justXMore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 3
+        }
+      }
+    },
+    "maxPlayers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "value": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100
+        }
+      }
+    },
+    "preset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "icon": {
+          "type": "string",
+          "description": "PNG in plugins/BetterMOTD/icons/. Simple names like default.png are allowed."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional random PNG icons independent from MOTD preset selection."
+        },
+        "conditions": {
+          "$ref": "#/$defs/conditions"
+        },
+        "motd": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "string"
+          }
+        },
+        "motdFrames": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["id"],
+      "anyOf": [
+        {
+          "required": ["motd"]
+        },
+        {
+          "required": ["motdFrames"]
+        }
+      ]
+    },
+    "conditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hostnames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hostnameContains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minProtocol": {
+          "type": "integer"
+        },
+        "maxProtocol": {
+          "type": "integer"
+        },
+        "minOnline": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxOnline": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

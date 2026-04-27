@@ -1,193 +1,137 @@
-![BetterMOTD](src/main/resources/bettermotd-logo.png)
+# BetterMOTD
 
-![Java Version](https://img.shields.io/badge/Java-21+-blue)
-![PaperMC](https://img.shields.io/badge/Paper-1.21.x-white)
-![Release](https://img.shields.io/github/v/release/AREKKUZZERA/better-motd?style=flat-square&logo=github)
-[![Modrinth](https://img.shields.io/badge/Modrinth-Available-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/plugin/better-motd)
+Lightweight Paper plugin for server-list MOTD, icons, formatting and player-count display.
 
-**BetterMOTD** is a lightweight and flexible plugin for **Paper/Spigot** Minecraft servers that provides
-custom **server MOTD** and **server icon** customization with MiniMessage, legacy, JSON, and hex color support.
- 
-The plugin is designed to be minimal, fast, and easy to configure.  
-No NMS. No performance overhead.
+## Requirements
 
----
+- Java 21+
+- Paper 1.21.x
+- Minecraft 1.21 - 1.21.11
 
-## ✨ Features
+The plugin uses Paper ping APIs for component MOTD, fake online count, hidden player count and hover control.
+Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
 
-- 🎨 Dynamic MOTD with **MiniMessage**, legacy, JSON, and Birdflop-style `&#RRGGBB` support
-- 🌈 HEX colors, gradients, and formatting (including §x RGB on Spigot)
-- 🖼️ Server icon switching per preset
-- 🎯 Weighted random, sticky-per-IP, hashed-per-IP, or rotating preset selection
-- 🧩 Default icon (`default.png`) generated on first startup
-- ⚡ Cached components for non-placeholder MOTD frames
-- ⚡ Lightweight, async-safe implementation
+## Features
 
----
+- MiniMessage, legacy color codes, JSON components and `&#RRGGBB` hex colors
+- Multiple presets with weights
+- Random, sticky-per-IP, hashed-per-IP and rotating preset selection
+- Animated MOTD frames
+- Per-preset server icons from `plugins/BetterMOTD/icons/`
+- Placeholders: `%online%`, `%max%`, `%version%`, `%profile%`, `%preset%`, `%motd_frame%`, `%time%`
+- Player-count options: fake players, fixed max players, "online + X", hidden count, disabled hover list
+- Custom hover/sample player lines
+- Maintenance profile and join gate with bypass permission
+- Preset conditions by hostname, protocol and online player count
+- Random icons per preset through `icons: [...]`
+- Optional PlaceholderAPI expansion
+- MiniMOTD config import command
+- `/bettermotd reload` without server restart
 
-## 📦 Compatibility
+## Installation
 
-- **Minecraft:** 1.21 - 1.21.11  
-- **Server:** Paper / Spigot  
-- **Java:** 21+
+1. Download `BetterMOTD-<version>.jar`.
+2. Put it into `plugins/`.
+3. Start the server once.
+4. Edit `plugins/BetterMOTD/config.yml`.
+5. Run `/bettermotd reload`.
 
----
+## Commands
 
-## 🚀 Installation
+All commands require `bettermotd.admin` permission.
 
-1. Open the [releases page](https://github.com/AREKKUZZERA/better-motd/releases)
-2. Download the **latest release** (`BetterMOTD-<version>.jar`)
-3. Place the JAR file into your server’s `plugins/` directory
-4. Start the server
-5. Edit `plugins/BetterMOTD/config.yml`
-6. Restart the server  
-   > `/reload` is not recommended for production environments
+- `/bettermotd help`
+- `/bettermotd reload` or `/bm r`
+- `/bettermotd profile [profileId]` or `/bm p [profileId]`
+- `/bettermotd preview <profileId|presetId>`
+- `/bettermotd diagnostics` or `/bm d`
+- `/bettermotd import minimotd [path]`
 
----
+Command aliases: `/bm`, `/bmotd`, `/motd`.
 
-## ⚡ Quick Start
+MiniMOTD import reads common `line1`/`line2` or `motd-first-line`/`motd-second-line` pairs and creates profile `imported`.
 
-After the first server start, the plugin will automatically generate:
+## Config Basics
 
-```txt
-plugins/BetterMOTD/
- ├─ config.yml
- └─ icons/
-    └─ default.png
-```
-
-You can immediately customize:
-
-* MOTD text and animation frames
-* Preset weights and selection mode
-* Player count display options
-* Server icons per preset
-
----
-
-## 🧰 Commands
-
-All commands require the `bettermotd.admin` permission (default: op).
-
-* `/bettermotd reload` - Reload the config and caches.
-* `/bettermotd profile <profileId>` - Switch the active profile.
-* `/bettermotd preview <profileId|presetId>` - Print a preview of the selected preset.
-* `/bettermotd diagnostics` - Show active profile, cache sizes, sticky counts, and formatter warning stats.
-
----
-
-## 🖼️ Server Icons
-
-* **Format:** PNG
-* **Resolution:** 64×64
-* **Path:** `plugins/BetterMOTD/icons/`
-
-If the `icons/` directory is empty, a default placeholder icon is created automatically.
+Default config path:
 
 ```txt
-icons/default.png
+plugins/BetterMOTD/config.yml
 ```
 
----
-
-## 📝 MOTD Format
-
-BetterMOTD supports multiple formatting syntaxes and automatically detects them in `AUTO`/`AUTO_STRICT` modes:
-
-- MiniMessage tags (`<gradient:#00ffcc:#0099ff>`, `<#00ffcc>`, `<bold>`, etc.)
-- Birdflop-style inline hex (`&#00D431Text`)
-- JSON components (`{"text":"","extra":[{"text":"M","color":"#00D431"}]}`)
-- Legacy section/ampersand codes (`§a`, `&a`, `§x§0§0§D§4§3§1`, `&x&0&0&D&4&3&1`)
-
-MiniMessage example:
+Minimal preset:
 
 ```yml
-motd:
-  - "<gradient:#00ffcc:#0099ff>Better Server</gradient>"
-  - "<gray>Online players: <green>%online%</green></gray>"
+profiles:
+  default:
+    presets:
+      - id: "main"
+        icon: "default.png"
+        motd:
+          - "<green><bold>My Server</bold></green>"
+          - "<gray>Online: <white>%online%</white>/<white>%max%</white></gray>"
 ```
 
-Animated MOTD can be defined using `motdFrames` with a configurable `frameIntervalMillis`.
+Animated preset:
 
-Supported placeholders:
+```yml
+motdFrames:
+  - "<green><bold>My Server</bold></green>\n<gray>Welcome</gray>"
+  - "<aqua><bold>My Server</bold></aqua>\n<gray>Version: %version%</gray>"
+```
 
-* `%online%`, `%max%`, `%version%`
-* `%preset%`, `%profile%`
-* `%motd_frame%`, `%time%` (server local time, HH:mm)
+Icons must be PNG files inside:
 
----
+```txt
+plugins/BetterMOTD/icons/
+```
 
-## 🎛️ Presets & Selection Modes
+Simple names like `default.png` are resolved as `icons/default.png`. Absolute paths, parent-directory paths and non-PNG files are rejected.
 
-BetterMOTD supports multiple presets with configurable weights.
+Maintenance mode:
 
-### Selection modes:
+```yml
+maintenance:
+  enabled: true
+  profile: "maintenance"
+  bypassPermission: "bettermotd.maintenance.bypass"
+  kickMessage: "<red>Server is in maintenance mode.</red>"
+```
 
-* **RANDOM** - random preset on each ping
-* **STICKY_PER_IP** - same preset for a client during a short time window
-* **HASHED_PER_IP** - stable preset per IP
-* **ROTATE** - cycles through presets in order
+Conditional preset example:
 
----
+```yml
+conditions:
+  hostnames: ["play.example.net"]
+  minProtocol: 767
+  maxOnline: 100
+```
 
-## ⚙️ Configuration
+## Production Notes
 
-All settings are located in `config.yml`.
+- Keep `debug.selfTest` and `debug.verbose` disabled unless diagnosing a config issue.
+- Prefer `AUTO_STRICT` if your MOTD contains literal `<` or `>` symbols.
+- Use `STICKY_PER_IP` for random presets to avoid flickering on repeated refreshes.
+- Keep icon files 64x64 PNG.
 
-Main configuration areas:
+## Competitor-Inspired Ideas
 
-* profiles and preset definitions
-* MOTD frames and animation speed
-* player count settings (fake players, hide counts, max override)
-* selection mode and sticky TTL
+Useful future features seen in MiniMOTD, AdvancedServerList, ServerListMOTD and similar plugins:
 
----
+- Maintenance MOTD with optional join blocking for non-whitelisted users
+- Custom hover/sample player lines instead of only disabling hover
+- Conditions by hostname, protocol version, player count or permission source
+- Multiple random icons independent from MOTD presets
+- PlaceholderAPI integration
+- Velocity/BungeeCord support for network setups
+- Import command for MiniMOTD-style configs
 
+## Build
 
-## 📋 Config Reference
+```bash
+mvn verify
+```
 
-| Key | Default | Description |
-|---|---|---|
-| `activeProfile` | `default` | Profile ID used for ping handling. |
-| `placeholders.enabled` | `true` | Enables `%online%`, `%max%`, `%preset%`, `%profile%`, `%motd_frame%`, `%time%`. |
-| `colorFormat` | `AUTO` | Text parser mode (`AUTO_STRICT` avoids false MiniMessage detection like `1 < 2 > 0`). |
-| `profiles.<id>.selectionMode` | `STICKY_PER_IP` | Preset strategy: `RANDOM`, `STICKY_PER_IP`, `HASHED_PER_IP`, `ROTATE`. |
-| `profiles.<id>.stickyTtlSeconds` | `10` | Sticky lifetime for STICKY mode. |
-| `profiles.<id>.stickyMaxEntriesPerProfile` | `10000` | Hard cap for sticky entries per profile. |
-| `profiles.<id>.stickyCleanupEveryNPings` | `500` | Cleanup cadence. |
-| `profiles.<id>.animation.frameIntervalMillis` | `450` | MOTD animation frame interval. |
+## License
 
-A machine-readable schema is provided at `src/main/resources/config.schema.json`.
-
-## ⚡ Performance Notes
-
-* Non-placeholder MOTD frames are parsed once and reused on each ping.
-* Placeholder replacement runs in a single pass and skips work when no tokens are present.
-
----
-
-## 📌 Compatibility Notes
-
-* Paper features are used directly via the Paper API when available.
-* Fully compatible with Spigot fallback.
-
----
-
-## 🧾 CHANGELOG
-
-### 1.4.0
-
-* Added a real whitelist gate that enforces Bukkit whitelist status on join.
-* Clarified whitelist MOTD behavior as public-only with a dedicated whitelist profile key.
-* Improved snapshot caching and placeholder handling for better ping performance.
-* Cleaned up legacy configuration paths and documented new whitelist gate settings.
-
-* Added sticky-per-IP cleanup safeguards and bounded eviction.
-* Added whitelist MOTD mode, hostname routing, and verbose debug logging.
-* Improved icon handling with guaranteed default icon caching.
-* Optimized placeholder handling and cached components for static frames.
-
-## 📄 License
-
-This project is licensed under the **MIT License**.
-You are free to use, modify, and distribute this plugin.
+MIT

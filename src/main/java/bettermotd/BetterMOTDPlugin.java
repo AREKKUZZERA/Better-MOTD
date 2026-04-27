@@ -16,6 +16,7 @@ public final class BetterMOTDPlugin extends JavaPlugin {
         MotdService.ReloadResult result = this.motdService.reload();
 
         getServer().getPluginManager().registerEvents(new ServerPingListener(motdService), this);
+        getServer().getPluginManager().registerEvents(new PlayerLoginListener(motdService), this);
 
         PluginCommand command = getCommand("bettermotd");
         if (command != null) {

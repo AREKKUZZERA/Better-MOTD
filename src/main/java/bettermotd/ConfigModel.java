@@ -21,13 +21,24 @@ public record ConfigModel(
         ColorFormat colorFormat,
         boolean debugSelfTest,
         boolean debugVerbose,
+        PlaceholderApiSettings placeholderApi,
+        MaintenanceSettings maintenance,
         Map<String, Profile> profiles) {
 
     public static final long DEFAULT_FRAME_INTERVAL_MILLIS = 450L;
     public static final List<String> FALLBACK_MOTD_LINES = List.of("BetterMOTD", "1.21.x");
 
     public static ConfigModel empty() {
-        return new ConfigModel("default", true, null, ColorFormat.AUTO, false, false, Collections.emptyMap());
+        return new ConfigModel(
+                "default",
+                true,
+                null,
+                ColorFormat.AUTO,
+                false,
+                false,
+                new PlaceholderApiSettings(false),
+                MaintenanceSettings.disabled(),
+                Collections.emptyMap());
     }
 
     public static LoadResult load(FileConfiguration cfg, File dataFolder, Logger logger) {
@@ -49,6 +60,9 @@ public record ConfigModel(
         }
         boolean debugSelfTest = cfg.getBoolean("debug.selfTest", false);
         boolean debugVerbose = cfg.getBoolean("debug.verbose", false);
+        PlaceholderApiSettings placeholderApi =
+                new PlaceholderApiSettings(cfg.getBoolean("placeholderAPI.enabled", false));
+        MaintenanceSettings maintenance = parseMaintenance(cfg.getConfigurationSection("maintenance"));
         String activeProfile = str(cfg.getString("activeProfile"), "default");
         String fallbackIconPath = dataFolder != null ? "icons/default.png" : null;
 
@@ -101,6 +115,8 @@ public record ConfigModel(
                 colorFormat,
                 debugSelfTest,
                 debugVerbose,
+                placeholderApi,
+                maintenance,
                 Collections.unmodifiableMap(profiles));
 
         return new LoadResult(model, warnings.get(), legacy, presetCounts, fallbackProfiles);
@@ -212,6 +228,7 @@ public record ConfigModel(
 
         boolean disableHover = section.getBoolean("disableHover", false);
         boolean hidePlayerCount = section.getBoolean("hidePlayerCount", false);
+        List<String> hoverLines = strList(section.get("hoverLines"));
         Profile.FakePlayersSettings fakePlayers =
                 parseFakePlayers(section.getConfigurationSection("fakePlayers"), profileId, logger, warnings);
 
@@ -228,18 +245,16 @@ public record ConfigModel(
 
         ConfigurationSection maxSec = section.getConfigurationSection("maxPlayers");
         boolean maxEnabled = maxSec != null && maxSec.getBoolean("enabled", false);
-        int maxValue = clamp(
-                maxSec != null ? maxSec.getInt("value", 0) : 0,
-                1,
-                Integer.MAX_VALUE,
-                "maxPlayers.value",
-                profileId,
-                logger,
-                warnings);
+        int maxValue = 0;
+        if (maxSec != null && maxEnabled) {
+            maxValue = clamp(
+                    maxSec.getInt("value", 0), 1, Integer.MAX_VALUE, "maxPlayers.value", profileId, logger, warnings);
+        }
 
         return new Profile.PlayerCountSettings(
                 disableHover,
                 hidePlayerCount,
+                List.copyOf(hoverLines),
                 fakePlayers,
                 new Profile.JustXMoreSettings(justXEnabled, justXValue),
                 new Profile.MaxPlayersSettings(maxEnabled, maxValue));
@@ -249,6 +264,7 @@ public record ConfigModel(
         return new Profile.PlayerCountSettings(
                 false,
                 false,
+                List.of(),
                 new Profile.FakePlayersSettings(false, Profile.FakePlayersMode.STATIC, 0, 0, 0.0),
                 new Profile.JustXMoreSettings(false, 0),
                 new Profile.MaxPlayersSettings(false, 0));
@@ -346,6 +362,9 @@ public record ConfigModel(
             String icon = resolveIcon(map.get("icon"), dataFolder, logger, fallbackIconPath, id, profileId, warnings);
             List<String> motd = normalizeMotdLines(strList(map.get("motd")), profileId, id, logger, warnings);
             List<String> motdFrames = normalizeFrames(strList(map.get("motdFrames")), profileId, id, logger, warnings);
+            List<String> icons =
+                    resolveIcons(map.get("icons"), dataFolder, logger, fallbackIconPath, id, profileId, warnings);
+            Preset.Conditions conditions = parseConditions(map.get("conditions"));
 
             if (motd.isEmpty() && motdFrames.isEmpty()) {
                 warn(
@@ -354,9 +373,53 @@ public record ConfigModel(
                         "Preset '" + id + "' in profile '" + profileId + "' has no motd or motdFrames. Skipping.");
                 continue;
             }
-            presets.add(new Preset(id, weight, icon, motd, motdFrames));
+            presets.add(new Preset(id, weight, icon, icons, motd, motdFrames, conditions));
         }
         return presets;
+    }
+
+    private static List<String> resolveIcons(
+            Object raw,
+            File dataFolder,
+            Logger logger,
+            String fallbackIconPath,
+            String presetId,
+            String profileId,
+            AtomicInteger warnings) {
+        List<String> rawIcons = strList(raw);
+        if (rawIcons.isEmpty()) return List.of();
+        List<String> icons = new ArrayList<>(rawIcons.size());
+        for (String rawIcon : rawIcons) {
+            String resolved = resolveIcon(rawIcon, dataFolder, logger, fallbackIconPath, presetId, profileId, warnings);
+            if (resolved != null && !icons.contains(resolved)) {
+                icons.add(resolved);
+            }
+        }
+        return List.copyOf(icons);
+    }
+
+    private static Preset.Conditions parseConditions(Object raw) {
+        if (!(raw instanceof Map<?, ?> map)) {
+            return Preset.Conditions.any();
+        }
+        return new Preset.Conditions(
+                strList(map.get("hostnames")),
+                strList(map.get("hostnameContains")),
+                nullableInt(map.get("minProtocol")),
+                nullableInt(map.get("maxProtocol")),
+                nullableInt(map.get("minOnline")),
+                nullableInt(map.get("maxOnline")));
+    }
+
+    private static MaintenanceSettings parseMaintenance(ConfigurationSection section) {
+        if (section == null) {
+            return MaintenanceSettings.disabled();
+        }
+        return new MaintenanceSettings(
+                section.getBoolean("enabled", false),
+                str(section.getString("profile"), null),
+                str(section.getString("bypassPermission"), "bettermotd.maintenance.bypass"),
+                str(section.getString("kickMessage"), "Server is in maintenance mode."));
     }
 
     /**
@@ -430,23 +493,26 @@ public record ConfigModel(
             AtomicInteger warnings) {
         String icon = str(raw, null);
         if (icon == null || icon.isBlank()) {
+            return fallbackIconPath;
+        }
+
+        String normalized = IconCache.normalizeIconPath(icon);
+        if (normalized == null) {
             if (fallbackIconPath != null) {
                 warn(
                         logger,
                         warnings,
-                        "Preset '" + presetId + "' in profile '" + profileId + "' has no icon. Using "
-                                + fallbackIconPath + ".");
+                        "Preset '" + presetId + "' in profile '" + profileId + "' has invalid icon path '" + icon
+                                + "'. Using " + fallbackIconPath + ".");
                 return fallbackIconPath;
             }
             warn(
                     logger,
                     warnings,
-                    "Preset '" + presetId + "' in profile '" + profileId + "' has no icon and no default icon.");
+                    "Preset '" + presetId + "' in profile '" + profileId + "' has invalid icon path '" + icon + "'.");
             return null;
         }
-
-        String normalized = IconCache.normalizeIconPath(icon);
-        if (normalized == null || dataFolder == null) return normalized;
+        if (dataFolder == null) return normalized;
 
         File iconFile = new File(dataFolder, normalized);
         if (!iconFile.isFile()) {
@@ -503,6 +569,16 @@ public record ConfigModel(
         }
     }
 
+    private static Integer nullableInt(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number n) return n.intValue();
+        try {
+            return Integer.parseInt(o.toString().trim());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private static List<String> strList(Object o) {
         if (o instanceof List<?> list) {
             List<String> out = new ArrayList<>(list.size());
@@ -537,6 +613,15 @@ public record ConfigModel(
             boolean legacy,
             Map<String, Integer> presetCounts,
             Set<String> fallbackProfiles) {}
+
+    public record PlaceholderApiSettings(boolean enabled) {}
+
+    public record MaintenanceSettings(boolean enabled, String profile, String bypassPermission, String kickMessage) {
+        public static MaintenanceSettings disabled() {
+            return new MaintenanceSettings(
+                    false, null, "bettermotd.maintenance.bypass", "Server is in maintenance mode.");
+        }
+    }
 
     public enum SelectionMode {
         RANDOM,

@@ -3,15 +3,19 @@ version: ${project.version}
 main: bettermotd.BetterMOTDPlugin
 api-version: "1.21"
 author: AREKKUZZERA
-description: Flexible MOTD/icon plugin with MiniMessage, legacy, and JSON color support.
+description: Paper server-list MOTD and icon plugin with MiniMessage, legacy, JSON, and hex color support.
+softdepend: [PlaceholderAPI]
 
 commands:
   bettermotd:
     description: Manage BetterMOTD
-    usage: /bettermotd <reload|profile|preview|diagnostics>
-    aliases: [bm]
+    usage: /bettermotd <help|reload|profile|preview|diagnostics>
+    aliases: [bm, bmotd, motd]
 
 permissions:
   bettermotd.admin:
     description: Grants all BetterMOTD commands
+    default: op
+  bettermotd.maintenance.bypass:
+    description: Allows joining while BetterMOTD maintenance mode is enabled
     default: op

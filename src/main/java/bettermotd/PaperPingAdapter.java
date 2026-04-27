@@ -1,6 +1,10 @@
 package bettermotd;
 
 import com.destroystokyo.paper.event.server.PaperServerListPingEvent;
+import com.destroystokyo.paper.event.server.PaperServerListPingEvent.ListedPlayerInfo;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
@@ -85,6 +89,38 @@ public final class PaperPingAdapter {
             warnOnce(warnedHover, "Failed to disable hover via Paper API: " + e.getMessage());
             return false;
         }
+    }
+
+    public boolean applyHoverLines(ServerListPingEvent event, List<String> lines) {
+        if (!PAPER_AVAILABLE || !(event instanceof PaperServerListPingEvent paper) || lines == null) {
+            return false;
+        }
+        try {
+            List<ListedPlayerInfo> listedPlayers = paper.getListedPlayers();
+            listedPlayers.clear();
+            int index = 0;
+            for (String line : lines) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+                listedPlayers.add(new ListedPlayerInfo(
+                        line, UUID.nameUUIDFromBytes(("BetterMOTD:" + index++).getBytes(StandardCharsets.UTF_8))));
+            }
+            return true;
+        } catch (Exception e) {
+            warnOnce(warnedHover, "Failed to apply hover sample lines via Paper API: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public int protocolVersion(ServerListPingEvent event) {
+        if (PAPER_AVAILABLE && event instanceof PaperServerListPingEvent paper) {
+            try {
+                return paper.getClient().getProtocolVersion();
+            } catch (Exception ignored) {
+            }
+        }
+        return -1;
     }
 
     private void warnOnce(AtomicBoolean flag, String message) {

@@ -1,5 +1,6 @@
 package bettermotd;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,7 +16,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class CommandHandler implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("reload", "profile", "preview", "diagnostics");
+    private static final List<String> SUBCOMMANDS =
+            List.of("help", "reload", "profile", "profiles", "preview", "diagnostics", "import");
 
     private final JavaPlugin plugin;
     private final MotdService motdService;
@@ -44,10 +46,15 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         String sub = args[0].toLowerCase(Locale.ROOT);
         try {
             return switch (sub) {
-                case "reload" -> handleReload(sender);
-                case "profile" -> handleProfile(sender, args);
-                case "preview" -> handlePreview(sender, args);
-                case "diagnostics" -> handleDiagnostics(sender);
+                case "help", "?" -> {
+                    sendUsage(sender);
+                    yield true;
+                }
+                case "reload", "r" -> handleReload(sender);
+                case "profile", "profiles", "setprofile", "p" -> handleProfile(sender, args);
+                case "preview", "show" -> handlePreview(sender, args);
+                case "diagnostics", "diag", "d" -> handleDiagnostics(sender);
+                case "import" -> handleImport(sender, args);
                 default -> {
                     sendUsage(sender);
                     yield true;
@@ -148,6 +155,25 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean handleImport(CommandSender sender, String[] args) {
+        if (args.length < 2 || !"minimotd".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("Usage: /bettermotd import minimotd [path]");
+            return true;
+        }
+        File source = args.length >= 3
+                ? new File(String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length)))
+                : new File(plugin.getDataFolder().getParentFile(), "MiniMOTD/main.conf");
+        MiniMotdImporter.ImportResult result = MiniMotdImporter.importInto(source, plugin.getConfig());
+        if (!result.success()) {
+            sender.sendMessage(result.message());
+            return true;
+        }
+        plugin.saveConfig();
+        reloadAll();
+        sender.sendMessage(result.message() + " Presets: " + result.presets() + ".");
+        return true;
+    }
+
     private void listProfiles(CommandSender sender) {
         Set<String> profiles = motdService.getProfileIds();
         if (profiles.isEmpty()) {
@@ -159,7 +185,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
     }
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage("Usage: /bettermotd <reload|profile|preview|diagnostics>");
+        sender.sendMessage("BetterMOTD commands:");
+        sender.sendMessage("- /bettermotd reload");
+        sender.sendMessage("- /bettermotd profile [profileId]");
+        sender.sendMessage("- /bettermotd preview <profileId|presetId>");
+        sender.sendMessage("- /bettermotd diagnostics");
+        sender.sendMessage("- /bettermotd import minimotd [path]");
     }
 
     private MotdService.ReloadResult reloadAll() {
@@ -178,12 +209,18 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             return filterStartsWith(SUBCOMMANDS, args[0]);
         }
-        if (args.length == 2 && ("profile".equalsIgnoreCase(args[0]) || "preview".equalsIgnoreCase(args[0]))) {
+        if (args.length == 2
+                && (isProfileCommand(args[0])
+                        || "preview".equalsIgnoreCase(args[0])
+                        || "show".equalsIgnoreCase(args[0]))) {
             List<String> entries = new ArrayList<>(motdService.getProfileIds());
-            if ("preview".equalsIgnoreCase(args[0])) {
+            if ("preview".equalsIgnoreCase(args[0]) || "show".equalsIgnoreCase(args[0])) {
                 entries.addAll(motdService.getPresetIds(motdService.getActiveProfileId()));
             }
             return filterStartsWith(entries, args[1]);
+        }
+        if (args.length == 2 && "import".equalsIgnoreCase(args[0])) {
+            return filterStartsWith(List.of("minimotd"), args[1]);
         }
         return Collections.emptyList();
     }
@@ -198,5 +235,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         }
         Collections.sort(filtered);
         return filtered;
+    }
+
+    private boolean isProfileCommand(String value) {
+        return "profile".equalsIgnoreCase(value)
+                || "profiles".equalsIgnoreCase(value)
+                || "setprofile".equalsIgnoreCase(value)
+                || "p".equalsIgnoreCase(value);
     }
 }

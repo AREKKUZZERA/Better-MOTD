@@ -1,29 +1,35 @@
-# BetterMOTD configuration
-activeProfile: "default"
-
-# Placeholder replacements in MOTD text:
-# %online%, %max%, %version%, %preset%, %profile%, %motd_frame%, %time%
-placeholders:
-  enabled: true
-
-# Supported color formats:
-# - MINI_MESSAGE (MiniMessage tags like <gradient:#00D431:#00BF4B>Text</gradient>, <#00D431>Text)
-# - HEX_AMPERSAND (&#00D431Text from Birdflop-style presets)
-# - JSON (Minecraft JSON component string)
-# - LEGACY_SECTION (§a, §x§0§0§D§4§3§1)
-# - LEGACY_AMPERSAND (&a, &x&0&0&D&4&3&1)
-# - AUTO (detects based on content)
-# - AUTO_STRICT (same as AUTO, but MiniMessage only on explicit tags)
+# BetterMOTD config
+# Text format: AUTO, AUTO_STRICT, MINI_MESSAGE, LEGACY_AMPERSAND, LEGACY_SECTION, HEX_AMPERSAND, JSON
 colorFormat: "AUTO"
 
-# Enable internal formatter self-tests on startup (logs warnings only).
+# Profile used by default. Can be changed at runtime with /bettermotd profile <id>.
+activeProfile: "default"
+
+placeholders:
+  # Supported: %online%, %max%, %version%, %profile%, %preset%, %motd_frame%, %time%
+  enabled: true
+
+placeholderAPI:
+  # Requires PlaceholderAPI plugin. Works in MOTD/hover text, without hard dependency.
+  enabled: false
+
+maintenance:
+  enabled: false
+  # Optional profile shown in the server list while maintenance is enabled.
+  profile: "maintenance"
+  bypassPermission: "bettermotd.maintenance.bypass"
+  kickMessage: "<red>Server is in maintenance mode.</red>"
+
 debug:
   selfTest: false
   verbose: false
 
 profiles:
   default:
-    # RANDOM | STICKY_PER_IP | HASHED_PER_IP | ROTATE
+    # RANDOM = random preset every ping
+    # STICKY_PER_IP = random preset, then keep it for the same IP for stickyTtlSeconds
+    # HASHED_PER_IP = stable preset based on IP
+    # ROTATE = next preset on every ping
     selectionMode: "STICKY_PER_IP"
     stickyTtlSeconds: 10
     stickyMaxEntriesPerProfile: 10000
@@ -31,43 +37,67 @@ profiles:
 
     animation:
       enabled: true
-      frameIntervalMillis: 450
-      motdAnimationMode: "GLOBAL" # GLOBAL | PER_IP_STICKY
+      frameIntervalMillis: 600
+      # GLOBAL = all clients see the same animation frame
+      # PER_IP_STICKY = each IP keeps one frame during stickyTtlSeconds
+      motdAnimationMode: "GLOBAL"
 
     playerCount:
+      # Paper-only options. On Bukkit/Spigot they are ignored with one warning.
       disableHover: false
       hidePlayerCount: false
+      hoverLines:
+        - "<green>BetterMOTD</green>"
+        - "<gray>Online: <white>%online%</white>/<white>%max%</white></gray>"
 
       fakePlayers:
         enabled: false
-        mode: "percent"   # static | random | percent
-        value: "25%"      # "3" | "3:6" | "25%"
+        # static: "5", random: "2:8", percent: "25%"
+        mode: "static"
+        value: "0"
 
+      # Shows max players as online + x.
       justXMore:
         enabled: false
         x: 3
 
+      # Fixed max players shown in the server list.
       maxPlayers:
         enabled: false
-        value: 69
+        value: 100
 
     presets:
-      - id: "aurora"
-        weight: 5
-        icon: "icons/aurora.png"
-        motdFrames:
-          - "<gradient:#7CFFB2:#2ED1FF><bold>BETTERMOTD</bold></gradient>\n<gray>1.21.x • <white>%online%</white>/<white>%max%</white> players</gray>"
-          - "<gradient:#2ED1FF:#7CFFB2><bold>BETTERMOTD</bold></gradient>\n<gray>Join <#B7D9FF>example.net</#B7D9FF> • <white>%online%</white>/<white>%max%</white></gray>"
-
-      - id: "ember"
-        weight: 3
-        icon: "icons/ember.png"
-        motdFrames:
-          - "<gradient:#FFB347:#FF5F6D><bold>EMBER REALM</bold></gradient>\n<gray>Survival • <white>%version%</white></gray>"
-          - "<gradient:#FF5F6D:#FFB347><bold>EMBER REALM</bold></gradient>\n<gray>Events tonight • <white>%online%</white>/<white>%max%</white></gray>"
-
-      - id: "classic"
+      - id: "main"
         weight: 1
+        icon: "default.png"
+        # Optional random icons independent from MOTD selection.
+        icons: []
+        # Optional conditions:
+        # conditions:
+        #   hostnames: ["play.example.net"]
+        #   hostnameContains: ["event"]
+        #   minProtocol: 767
+        #   maxProtocol: 999
+        #   minOnline: 0
+        #   maxOnline: 100
+        motdFrames:
+          - "<gradient:#00D431:#00BF4B><bold>BetterMOTD</bold></gradient>\n<gray>Online: <white>%online%</white>/<white>%max%</white> | %version%</gray>"
+          - "<#00D431><bold>BetterMOTD</bold></#00D431>\n<gray>Welcome! Time: <white>%time%</white></gray>"
+
+  maintenance:
+    selectionMode: "ROTATE"
+    animation:
+      enabled: false
+    playerCount:
+      disableHover: false
+      hidePlayerCount: false
+      hoverLines:
+        - "<red>Maintenance</red>"
+        - "<gray>Please try again later.</gray>"
+    presets:
+      - id: "maintenance"
+        weight: 1
+        icon: "default.png"
         motd:
-          - "<#7CFFB2><bold>BetterMOTD</bold></#7CFFB2> <gray>•</gray> <#B7D9FF>Vanilla+</#B7D9FF>"
-          - "<gray>Welcome back, %preset%</gray>"
+          - "<red><bold>Maintenance</bold></red>"
+          - "<gray>Server is temporarily closed.</gray>"

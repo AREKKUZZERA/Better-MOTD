@@ -3,9 +3,13 @@ package bettermotd;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.Bukkit;
 import org.bukkit.Server;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -42,6 +46,10 @@ public final class IconCache {
 
     public CachedServerIcon pickIcon(Preset preset) {
         String path = (preset != null) ? preset.icon() : null;
+        List<String> icons = preset != null ? preset.icons() : List.of();
+        if (icons != null && !icons.isEmpty()) {
+            path = icons.get(ThreadLocalRandom.current().nextInt(icons.size()));
+        }
 
         if (path == null || path.isBlank()) {
             path = DEFAULT_ICON_TARGET;
@@ -58,13 +66,30 @@ public final class IconCache {
         if (relPath == null || relPath.isBlank()) {
             return null;
         }
-        String normalized = relPath;
-        if (!normalized.contains("/")
-                && !normalized.contains("\\")
-                && normalized.toLowerCase().endsWith(".png")) {
+        String normalized = relPath.trim().replace("\\", "/");
+        if (!normalized.contains("/") && normalized.toLowerCase().endsWith(".png")) {
             normalized = "icons/" + normalized;
         }
-        return normalized.replace("\\", "/");
+        if (normalized.startsWith("/") || normalized.matches("^[A-Za-z]:/.*")) {
+            return null;
+        }
+        if (!normalized.toLowerCase().endsWith(".png")) {
+            return null;
+        }
+        try {
+            Path path = Path.of(normalized);
+            if (path.isAbsolute()) {
+                return null;
+            }
+            Path clean = path.normalize();
+            if (clean.startsWith("..")) {
+                return null;
+            }
+            String cleanPath = clean.toString().replace("\\", "/");
+            return cleanPath.isBlank() ? null : cleanPath;
+        } catch (InvalidPathException e) {
+            return null;
+        }
     }
 
     /*

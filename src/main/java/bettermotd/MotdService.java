@@ -33,6 +33,7 @@ public final class MotdService {
     private final ActiveProfileStore profileStore;
     private final IconCache iconCache;
     private final TextFormatService textFormatService;
+    private final PlaceholderService placeholderService;
     private final PaperPingAdapter paperAdapter;
     private final PlayerCountService playerCountService;
 
@@ -49,6 +50,7 @@ public final class MotdService {
         this.profileStore = profileStore;
         this.iconCache = new IconCache(plugin);
         this.textFormatService = new TextFormatService();
+        this.placeholderService = new PlaceholderService(plugin.getLogger());
         this.paperAdapter = new PaperPingAdapter(plugin.getLogger());
         this.playerCountService = new PlayerCountService(plugin.getLogger());
     }
@@ -121,8 +123,8 @@ public final class MotdService {
         }
         try {
             long now = System.currentTimeMillis();
-            RequestContext ctx = new RequestContext(asIp(event.getAddress()), now);
-            Profile profile = resolveProfile(activeProfileId);
+            RequestContext ctx = new RequestContext(requestInfo(event), now);
+            Profile profile = resolveProfile(resolvePingProfileId());
             applySelection(event, ctx, profile);
         } catch (Exception e) {
             logException(
@@ -138,7 +140,8 @@ public final class MotdService {
         }
         String id = idOrPreset.trim();
         long now = System.currentTimeMillis();
-        RequestContext ctx = new RequestContext(asIp(address), now);
+        RequestContext ctx = new RequestContext(
+                RequestInfo.preview(asIp(address), Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers()), now);
 
         Profile profile = config.profiles().get(id);
         boolean fromProfile = true;
@@ -160,7 +163,7 @@ public final class MotdService {
         }
 
         PlayerCountService.PlayerCountResult counts = playerCountService.compute(
-                profile, ctx.ip(), Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers(), now);
+                profile, ctx.request().ip(), Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers(), now);
         MotdRenderResult render = renderMotd(profile, selection, counts, ctx);
         String motdRaw = render.raw();
         TextFormatService.ParseResult parsed = render.parsed();
@@ -192,7 +195,7 @@ public final class MotdService {
     private void applySelection(ServerListPingEvent event, RequestContext ctx, Profile profile) {
         SelectionResult selection = selectPreset(profile, ctx, true);
         PlayerCountService.PlayerCountResult counts = playerCountService.compute(
-                profile, ctx.ip(), event.getNumPlayers(), event.getMaxPlayers(), ctx.nowMs());
+                profile, ctx.request().ip(), event.getNumPlayers(), event.getMaxPlayers(), ctx.nowMs());
         MotdRenderResult render = renderMotd(profile, selection, counts, ctx);
         TextFormatService.ParseResult parsed = render.parsed();
         warnIfFallback(profile, selection.preset(), parsed);
@@ -203,6 +206,7 @@ public final class MotdService {
         }
 
         playerCountService.apply(event, counts, paperAdapter);
+        applyHover(event, profile, counts, ctx);
 
         try {
             event.setServerIcon(iconCache.pickIcon(selection.preset()));
@@ -221,11 +225,12 @@ public final class MotdService {
         if (presets == null || presets.isEmpty()) {
             presets = List.of(Preset.fallback(config.fallbackIconPath()));
         }
+        presets = filterByConditions(presets, ctx.request());
 
         ConfigModel.SelectionMode mode = profile.selectionMode();
         long now = ctx.nowMs();
         long ttlMs = Math.max(1, profile.stickyTtlSeconds()) * 1000L;
-        String ip = ctx.ip();
+        String ip = ctx.request().ip();
         boolean perIpFrames = profile.animation().mode() == ConfigModel.AnimationMode.PER_IP_STICKY;
 
         if (ip != null) {
@@ -424,7 +429,8 @@ public final class MotdService {
         if (size <= 0) {
             return 0;
         }
-        if (profile.animation().mode() == ConfigModel.AnimationMode.PER_IP_STICKY && ctx.ip() != null) {
+        if (profile.animation().mode() == ConfigModel.AnimationMode.PER_IP_STICKY
+                && ctx.request().ip() != null) {
             StickyEntry entry = selection.stickyEntry();
             if (entry != null) {
                 return Math.floorMod(entry.frameSeed(), size);
@@ -466,7 +472,26 @@ public final class MotdService {
             }
             out.append(input.charAt(i));
         }
-        return out.toString();
+        return placeholderService.apply(out.toString(), config.placeholderApi().enabled());
+    }
+
+    private void applyHover(
+            ServerListPingEvent event,
+            Profile profile,
+            PlayerCountService.PlayerCountResult counts,
+            RequestContext ctx) {
+        List<String> lines = profile.playerCount().hoverLines();
+        if (lines == null || lines.isEmpty() || counts.disableHover()) {
+            return;
+        }
+        PlaceholderValues values = buildPlaceholderValues("hover", profile.id(), counts, 0, ctx);
+        List<String> rendered = new ArrayList<>(lines.size());
+        for (String line : lines) {
+            rendered.add(applyPlaceholders(line, values));
+        }
+        if (!paperAdapter.applyHoverLines(event, rendered)) {
+            plugin.getLogger().warning("Custom hoverLines require Paper ping API.");
+        }
     }
 
     private String asIp(InetAddress address) {
@@ -492,6 +517,7 @@ public final class MotdService {
                 new Profile.PlayerCountSettings(
                         false,
                         false,
+                        List.of(),
                         new Profile.FakePlayersSettings(false, Profile.FakePlayersMode.STATIC, 0, 0, 0.0),
                         new Profile.JustXMoreSettings(false, 0),
                         new Profile.MaxPlayersSettings(false, 0)),
@@ -583,6 +609,9 @@ public final class MotdService {
         if (input == null || input.indexOf('%') < 0) {
             return false;
         }
+        if (config.placeholderApi().enabled()) {
+            return true;
+        }
         for (String token :
                 new String[] {"%online%", "%max%", "%version%", "%preset%", "%profile%", "%motd_frame%", "%time%"}) {
             if (input.contains(token)) {
@@ -617,9 +646,50 @@ public final class MotdService {
                 if (preset.icon() != null && !preset.icon().isBlank()) {
                     paths.add(preset.icon());
                 }
+                paths.addAll(preset.icons());
             }
         }
         return paths;
+    }
+
+    private List<Preset> filterByConditions(List<Preset> presets, RequestInfo request) {
+        List<Preset> matching = new ArrayList<>();
+        for (Preset preset : presets) {
+            if (preset.conditions().matches(request)) {
+                matching.add(preset);
+            }
+        }
+        return matching.isEmpty() ? presets : matching;
+    }
+
+    private String resolvePingProfileId() {
+        if (config.maintenance().enabled()
+                && config.maintenance().profile() != null
+                && config.profiles().containsKey(config.maintenance().profile())) {
+            return config.maintenance().profile();
+        }
+        return activeProfileId;
+    }
+
+    public boolean maintenanceEnabled() {
+        return config.maintenance().enabled();
+    }
+
+    public String maintenanceBypassPermission() {
+        return config.maintenance().bypassPermission();
+    }
+
+    public String maintenanceKickMessage() {
+        return config.maintenance().kickMessage();
+    }
+
+    private RequestInfo requestInfo(ServerListPingEvent event) {
+        return new RequestInfo(
+                asIp(event.getAddress()),
+                event.getHostname(),
+                paperAdapter.protocolVersion(event),
+                event.getNumPlayers(),
+                event.getMaxPlayers());
     }
 
     private void runStickyMaintenance(Profile profile, long nowMs, long ttlMs) {
@@ -761,5 +831,5 @@ public final class MotdService {
             int presetCacheSize,
             int formatWarnings) {}
 
-    private record RequestContext(String ip, long nowMs) {}
+    private record RequestContext(RequestInfo request, long nowMs) {}
 }
