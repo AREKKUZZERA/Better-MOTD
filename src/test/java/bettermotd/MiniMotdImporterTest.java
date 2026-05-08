@@ -16,9 +16,7 @@ class MiniMotdImporterTest {
     @Test
     void importsLinePairsIntoImportedProfile() throws Exception {
         java.nio.file.Path source = tempDir.resolve("main.conf");
-        Files.writeString(
-                source,
-                """
+        Files.writeString(source, """
                 motds=[
                   { line1="<green>One</green>" line2="<gray>Two</gray>" icon="default.png" }
                 ]
