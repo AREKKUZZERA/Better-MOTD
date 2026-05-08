@@ -4,9 +4,9 @@ Lightweight Paper plugin for server-list MOTD, icons, formatting and player-coun
 
 ## Requirements
 
-- Java 21+
-- Paper 1.21.x
-- Minecraft 1.21 - 1.21.11
+- Java 25+
+- Paper 26.1 - 26.1.2
+- Minecraft 26.1 - 26.1.2
 
 The plugin uses Paper ping APIs for component MOTD, fake online count, hidden player count and hover control.
 Bukkit fallback is kept for basic MOTD text, but production use should be Paper.

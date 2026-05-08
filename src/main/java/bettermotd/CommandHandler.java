@@ -2,6 +2,7 @@ package bettermotd;
 
 import java.io.File;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -100,8 +101,11 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         }
         String id = args[1];
         InetAddress address = null;
-        if (sender instanceof Player player && player.getAddress() != null) {
-            address = player.getAddress().getAddress();
+        if (sender instanceof Player player) {
+            InetSocketAddress socketAddress = player.getAddress();
+            if (socketAddress != null) {
+                address = socketAddress.getAddress();
+            }
         }
 
         MotdService.PreviewResult result = motdService.preview(id, address);

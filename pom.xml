@@ -5,15 +5,15 @@
 
   <groupId>bettermotd</groupId>
   <artifactId>BetterMOTD</artifactId>
-  <version>1.7.0</version>
+  <version>1.7.1</version>
 
   <properties>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.11.3</junit.version>
 
-    <!-- Paper API version -->
-    <paper.api.version>1.21.11-R0.1-SNAPSHOT</paper.api.version>
+    <!-- Paper API baseline for Minecraft 26.1 - 26.1.2 compatibility -->
+    <paper.api.version>26.1.1.build.29-alpha</paper.api.version>
   </properties>
 
   <repositories>

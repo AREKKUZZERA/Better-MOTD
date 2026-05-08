@@ -132,7 +132,7 @@ public final class IconCache {
             return; // placeholder already exists
         }
 
-        boolean ok = copyResourceToFile(DEFAULT_ICON_RESOURCE, target);
+        boolean ok = copyDefaultIconResourceToFile(target);
         if (ok) {
             plugin.getLogger().info("Created default icon: " + target.getPath());
         } else {
@@ -155,8 +155,8 @@ public final class IconCache {
         }
     }
 
-    private boolean copyResourceToFile(String resourcePath, File target) {
-        try (InputStream in = plugin.getResource(resourcePath)) {
+    private boolean copyDefaultIconResourceToFile(File target) {
+        try (InputStream in = plugin.getResource(DEFAULT_ICON_RESOURCE)) {
             if (in == null) {
                 return false;
             }
