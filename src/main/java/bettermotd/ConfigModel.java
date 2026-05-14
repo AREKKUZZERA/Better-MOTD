@@ -279,7 +279,7 @@ public record ConfigModel(
             case RANDOM -> {
                 int[] range = parseRange(valueRaw);
                 min = Math.max(0, range[0]);
-                max = Math.max(min, range[1]);
+                max = Math.max(0, range[1]);
             }
             default -> {
                 min = Math.max(0, parseInt(valueRaw));

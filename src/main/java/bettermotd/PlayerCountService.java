@@ -1,6 +1,5 @@
 package bettermotd;
 
-import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
@@ -17,13 +16,13 @@ public final class PlayerCountService {
         this.logger = logger;
     }
 
-    public PlayerCountResult compute(Profile profile, String ip, int online, int max, long nowMs) {
+    public PlayerCountResult compute(Profile profile, int online, int max) {
         int safeOnline = Math.max(0, online);
         int safeMax = Math.max(0, max);
 
         Profile.PlayerCountSettings settings = profile.playerCount();
 
-        int fakeDelta = computeFakePlayers(profile, settings.fakePlayers(), ip, safeOnline, nowMs);
+        int fakeDelta = computeFakePlayers(settings.fakePlayers(), safeOnline);
         int displayOnline = safeOnline + fakeDelta;
 
         int displayMax = safeMax;
@@ -93,28 +92,20 @@ public final class PlayerCountService {
         }
     }
 
-    private int computeFakePlayers(
-            Profile profile, Profile.FakePlayersSettings fakePlayers, String ip, int online, long nowMs) {
+    private int computeFakePlayers(Profile.FakePlayersSettings fakePlayers, int online) {
         if (fakePlayers == null || !fakePlayers.enabled()) return 0;
 
         return switch (fakePlayers.mode()) {
             case STATIC -> Math.max(0, fakePlayers.min());
-            case RANDOM -> randomBetween(fakePlayers.min(), fakePlayers.max(), profile.selectionMode(), ip, nowMs);
+            case RANDOM -> randomBetween(fakePlayers.min(), fakePlayers.max());
             case PERCENT -> (int) Math.ceil(online * Math.max(0.0, fakePlayers.percent()) / 100.0);
         };
     }
 
-    private int randomBetween(int min, int max, ConfigModel.SelectionMode selectionMode, String ip, long nowMs) {
+    private int randomBetween(int min, int max) {
         int low = Math.max(0, Math.min(min, max));
         int high = Math.max(low, Math.max(min, max));
         if (low == high) return low;
-
-        if (selectionMode == ConfigModel.SelectionMode.STICKY_PER_IP && ip != null) {
-            long bucket = nowMs / 60000L; // 1-minute buckets for stability
-            long seed = (long) Objects.hash(ip, bucket);
-            // SplittableRandom is cheaper than new Random for one-shot seeded use
-            return (int) (new java.util.SplittableRandom(seed).nextLong(high - low + 1) + low);
-        }
 
         return ThreadLocalRandom.current().nextInt(low, high + 1);
     }

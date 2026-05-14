@@ -162,8 +162,8 @@ public final class MotdService {
             fromProfile = false;
         }
 
-        PlayerCountService.PlayerCountResult counts = playerCountService.compute(
-                profile, ctx.request().ip(), Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers(), now);
+        PlayerCountService.PlayerCountResult counts =
+                playerCountService.compute(profile, Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers());
         MotdRenderResult render = renderMotd(profile, selection, counts, ctx);
         String motdRaw = render.raw();
         TextFormatService.ParseResult parsed = render.parsed();
@@ -194,8 +194,8 @@ public final class MotdService {
 
     private void applySelection(ServerListPingEvent event, RequestContext ctx, Profile profile) {
         SelectionResult selection = selectPreset(profile, ctx);
-        PlayerCountService.PlayerCountResult counts = playerCountService.compute(
-                profile, ctx.request().ip(), event.getNumPlayers(), event.getMaxPlayers(), ctx.nowMs());
+        PlayerCountService.PlayerCountResult counts =
+                playerCountService.compute(profile, event.getNumPlayers(), event.getMaxPlayers());
         MotdRenderResult render = renderMotd(profile, selection, counts, ctx);
         TextFormatService.ParseResult parsed = render.parsed();
         warnIfFallback(profile, selection.preset(), parsed);
