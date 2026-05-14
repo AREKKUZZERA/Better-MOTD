@@ -8,12 +8,15 @@
   <version>1.7.1</version>
 
   <properties>
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.11.3</junit.version>
 
-    <!-- Paper API baseline for Minecraft 26.1 - 26.1.2 compatibility -->
-    <paper.api.version>26.1.1.build.29-alpha</paper.api.version>
+    <minecraft.target>mc-1.21.x</minecraft.target>
+    <plugin.api.version>1.21</plugin.api.version>
+
+    <!-- Default artifact targets Minecraft 1.21.x. Use -Pmc-26.1.x for the 26.1.x artifact. -->
+    <paper.api.version>1.21-R0.1-SNAPSHOT</paper.api.version>
   </properties>
 
   <repositories>
@@ -46,7 +49,7 @@
   </dependencies>
 
   <build>
-    <finalName>${project.artifactId}-${project.version}</finalName>
+    <finalName>${project.artifactId}-${project.version}-${minecraft.target}</finalName>
 
     <resources>
       <!-- Filter ONLY the config files that may contain ${project.version}, etc -->
@@ -118,6 +121,60 @@
           </execution>
         </executions>
       </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>package-mc-26.1.x</id>
+            <phase>package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <property name="variant.dir" value="${project.build.directory}/variant-mc-26.1.x"/>
+                <delete dir="${variant.dir}"/>
+                <mkdir dir="${variant.dir}"/>
+                <copy todir="${variant.dir}">
+                  <fileset dir="${project.build.outputDirectory}"/>
+                </copy>
+                <copy file="${project.basedir}/src/main/variants/mc-26.1.x/plugin.yml"
+                      tofile="${variant.dir}/plugin.yml"
+                      overwrite="true">
+                  <filterset>
+                    <filter token="PROJECT_VERSION" value="${project.version}"/>
+                  </filterset>
+                </copy>
+                <jar destfile="${project.build.directory}/${project.artifactId}-${project.version}-mc-26.1-26.1.2.jar"
+                     basedir="${variant.dir}"/>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>mc-1.21.x</id>
+      <properties>
+        <minecraft.target>mc-1.21.x</minecraft.target>
+        <plugin.api.version>1.21</plugin.api.version>
+        <paper.api.version>1.21-R0.1-SNAPSHOT</paper.api.version>
+      </properties>
+    </profile>
+
+    <profile>
+      <id>mc-26.1.x</id>
+      <properties>
+        <minecraft.target>mc-26.1-26.1.2</minecraft.target>
+        <plugin.api.version>26.1</plugin.api.version>
+        <paper.api.version>26.1.2.build.63-stable</paper.api.version>
+      </properties>
+    </profile>
+  </profiles>
 </project>

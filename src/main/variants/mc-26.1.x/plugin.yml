@@ -1,7 +1,7 @@
 name: BetterMOTD
-version: ${project.version}
+version: @PROJECT_VERSION@
 main: bettermotd.BetterMOTDPlugin
-api-version: "${plugin.api.version}"
+api-version: "26.1"
 author: AREKKUZZERA
 description: Paper server-list MOTD and icon plugin with MiniMessage, legacy, JSON, and hex color support.
 softdepend: [PlaceholderAPI]

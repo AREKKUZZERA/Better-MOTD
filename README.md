@@ -4,9 +4,9 @@ Lightweight Paper plugin for server-list MOTD, icons, formatting and player-coun
 
 ## Requirements
 
-- Java 25+
-- Paper 26.1 - 26.1.2
-- Minecraft 26.1 - 26.1.2
+- Java 21+
+- Paper 1.21 - 1.21.11 or 26.1 - 26.1.2
+- Minecraft 1.21 - 1.21.11 or 26.1 - 26.1.2
 
 The plugin uses Paper ping APIs for component MOTD, fake online count, hidden player count and hover control.
 Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
@@ -16,7 +16,6 @@ Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
 - MiniMessage, legacy color codes, JSON components and `&#RRGGBB` hex colors
 - Multiple presets with weights
 - Random, sticky-per-IP, hashed-per-IP and rotating preset selection
-- Animated MOTD frames
 - Per-preset server icons from `plugins/BetterMOTD/icons/`
 - Placeholders: `%online%`, `%max%`, `%version%`, `%profile%`, `%preset%`, `%motd_frame%`, `%time%`
 - Player-count options: fake players, fixed max players, "online + X", hidden count, disabled hover list
@@ -35,6 +34,25 @@ Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
 3. Start the server once.
 4. Edit `plugins/BetterMOTD/config.yml`.
 5. Run `/bettermotd reload`.
+
+## Build Artifacts
+
+Build both supported Minecraft targets:
+
+```powershell
+mvn clean package
+```
+
+Artifacts are written to `target/`:
+
+- `BetterMOTD-<pluginVersion>-mc-1.21.x.jar`
+- `BetterMOTD-<pluginVersion>-mc-26.1-26.1.2.jar`
+
+To copy both jars into `target/dist/`:
+
+```powershell
+.\scripts\build-all.ps1
+```
 
 ## Commands
 
@@ -72,13 +90,7 @@ profiles:
           - "<gray>Online: <white>%online%</white>/<white>%max%</white></gray>"
 ```
 
-Animated preset:
-
-```yml
-motdFrames:
-  - "<green><bold>My Server</bold></green>\n<gray>Welcome</gray>"
-  - "<aqua><bold>My Server</bold></aqua>\n<gray>Version: %version%</gray>"
-```
+Add more presets and choose how they change with `selectionMode`: `RANDOM`, `STICKY_PER_IP`, `HASHED_PER_IP`, or `ROTATE`.
 
 Icons must be PNG files inside:
 
