@@ -30,7 +30,6 @@ public final class MiniMotdImporter {
                 return new ImportResult(false, 0, "No MiniMOTD line1/line2 entries found.");
             }
             target.set("profiles.imported.selectionMode", "RANDOM");
-            target.set("profiles.imported.animation.enabled", false);
             target.set("profiles.imported.playerCount.disableHover", false);
             target.set("profiles.imported.playerCount.hidePlayerCount", false);
             target.set("profiles.imported.presets", presets);

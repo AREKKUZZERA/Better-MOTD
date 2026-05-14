@@ -25,7 +25,6 @@ public record ConfigModel(
         MaintenanceSettings maintenance,
         Map<String, Profile> profiles) {
 
-    public static final long DEFAULT_FRAME_INTERVAL_MILLIS = 450L;
     public static final List<String> FALLBACK_MOTD_LINES = List.of("BetterMOTD", "1.21.x");
 
     public static ConfigModel empty() {
@@ -179,28 +178,6 @@ public record ConfigModel(
                 logger,
                 warnings);
 
-        boolean animEnabled = section.getBoolean("animation.enabled", true);
-        long interval = section.getLong("animation.frameIntervalMillis", DEFAULT_FRAME_INTERVAL_MILLIS);
-        if (interval < 100L) {
-            warn(
-                    logger,
-                    warnings,
-                    "animation.frameIntervalMillis in profile '" + profileId + "' must be >= 100. Using 100.");
-            interval = 100L;
-        }
-
-        String animModeRaw = section.getString("animation.motdAnimationMode", AnimationMode.GLOBAL.name());
-        AnimationMode animMode = AnimationMode.from(animModeRaw);
-        if (animMode == null) {
-            warn(
-                    logger,
-                    warnings,
-                    "Unknown animation.motdAnimationMode '" + animModeRaw + "' in profile '" + profileId
-                            + "'. Using GLOBAL.");
-            animMode = AnimationMode.GLOBAL;
-        }
-
-        Profile.AnimationSettings animation = new Profile.AnimationSettings(animEnabled, interval, animMode);
         Profile.PlayerCountSettings playerCount =
                 parsePlayerCount(section.getConfigurationSection("playerCount"), profileId, logger, warnings);
 
@@ -217,7 +194,6 @@ public record ConfigModel(
                 stickyTtlSeconds,
                 stickyMaxEntries,
                 stickyCleanupEvery,
-                animation,
                 playerCount,
                 List.copyOf(presets));
     }
@@ -373,9 +349,40 @@ public record ConfigModel(
                         "Preset '" + id + "' in profile '" + profileId + "' has no motd or motdFrames. Skipping.");
                 continue;
             }
-            presets.add(new Preset(id, weight, icon, icons, motd, motdFrames, conditions));
+            if (!motd.isEmpty()) {
+                presets.add(new Preset(id, weight, icon, icons, motd, conditions));
+                if (!motdFrames.isEmpty()) {
+                    warn(
+                            logger,
+                            warnings,
+                            "Preset '" + id + "' in profile '" + profileId
+                                    + "' uses legacy motdFrames together with motd. Ignoring motdFrames.");
+                }
+                continue;
+            }
+
+            warn(
+                    logger,
+                    warnings,
+                    "Preset '" + id + "' in profile '" + profileId
+                            + "' uses legacy motdFrames. Loading frames as separate presets.");
+            for (int i = 0; i < motdFrames.size(); i++) {
+                presets.add(new Preset(
+                        id + "-" + (i + 1), weight, icon, icons, frameToMotd(motdFrames.get(i)), conditions));
+            }
         }
         return presets;
+    }
+
+    private static List<String> frameToMotd(String frame) {
+        if (frame == null || frame.isEmpty()) {
+            return FALLBACK_MOTD_LINES;
+        }
+        int nl = frame.indexOf('\n');
+        if (nl < 0) {
+            return List.of(frame, "");
+        }
+        return List.of(frame.substring(0, nl), frame.substring(nl + 1));
     }
 
     private static List<String> resolveIcons(
@@ -437,12 +444,18 @@ public record ConfigModel(
                             + "' motd has more than 2 lines. Using first two.");
         }
         String line1 = lines.get(0);
+        if (lines.size() == 1) {
+            int nl = line1.indexOf('\n');
+            if (nl >= 0) {
+                return List.of(line1.substring(0, nl), line1.substring(nl + 1));
+            }
+        }
         String line2 = lines.size() >= 2 ? lines.get(1) : "";
         return List.of(line1, line2);
     }
 
     /**
-     * Normalizes animation frames. Each frame is a string with at most 2 lines (split by \n).
+     * Normalizes legacy motdFrames entries. Each frame is a string with at most 2 lines.
      */
     private static List<String> normalizeFrames(
             List<String> frames, String profileId, String presetId, Logger logger, AtomicInteger warnings) {
@@ -452,7 +465,6 @@ public record ConfigModel(
             String raw = frames.get(i) == null ? "" : frames.get(i);
             int nl = raw.indexOf('\n');
             if (nl < 0) {
-                // single-line frame — append empty second line
                 out.add(raw + "\n");
             } else {
                 int second = raw.indexOf('\n', nl + 1);
@@ -478,7 +490,6 @@ public record ConfigModel(
                 10,
                 10000,
                 500,
-                new Profile.AnimationSettings(true, DEFAULT_FRAME_INTERVAL_MILLIS, AnimationMode.GLOBAL),
                 defaultPlayerCount(),
                 List.of(Preset.fallback(fallbackIconPath)));
     }
@@ -543,7 +554,7 @@ public record ConfigModel(
         }
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // Helpers
 
     private static String str(Object o, String def) {
         if (o == null) return def;
@@ -605,7 +616,7 @@ public record ConfigModel(
         return Math.min(value, max);
     }
 
-    // ── Nested types ─────────────────────────────────────────────────────────
+    // Nested types
 
     public record LoadResult(
             ConfigModel config,
@@ -632,19 +643,6 @@ public record ConfigModel(
         public static SelectionMode from(String value) {
             if (value == null) return null;
             for (SelectionMode m : values()) {
-                if (m.name().equalsIgnoreCase(value)) return m;
-            }
-            return null;
-        }
-    }
-
-    public enum AnimationMode {
-        GLOBAL,
-        PER_IP_STICKY;
-
-        public static AnimationMode from(String value) {
-            if (value == null) return null;
-            for (AnimationMode m : values()) {
                 if (m.name().equalsIgnoreCase(value)) return m;
             }
             return null;

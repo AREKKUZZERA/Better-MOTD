@@ -103,9 +103,6 @@
           "minimum": 1,
           "default": 500
         },
-        "animation": {
-          "$ref": "#/$defs/animation"
-        },
         "playerCount": {
           "$ref": "#/$defs/playerCount"
         },
@@ -118,26 +115,6 @@
         }
       },
       "required": ["presets"]
-    },
-    "animation": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": true
-        },
-        "frameIntervalMillis": {
-          "type": "integer",
-          "minimum": 100,
-          "default": 600
-        },
-        "motdAnimationMode": {
-          "type": "string",
-          "enum": ["GLOBAL", "PER_IP_STICKY"],
-          "default": "GLOBAL"
-        }
-      }
     },
     "playerCount": {
       "type": "object",
@@ -252,24 +229,9 @@
           "items": {
             "type": "string"
           }
-        },
-        "motdFrames": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string"
-          }
         }
       },
-      "required": ["id"],
-      "anyOf": [
-        {
-          "required": ["motd"]
-        },
-        {
-          "required": ["motdFrames"]
-        }
-      ]
+      "required": ["id", "motd"]
     },
     "conditions": {
       "type": "object",

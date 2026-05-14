@@ -2,17 +2,9 @@ package bettermotd;
 
 import java.util.List;
 
-public record Preset(
-        String id,
-        int weight,
-        String icon,
-        List<String> icons,
-        List<String> motd,
-        List<String> motdFrames,
-        Conditions conditions) {
+public record Preset(String id, int weight, String icon, List<String> icons, List<String> motd, Conditions conditions) {
     public static Preset fallback(String iconPath) {
-        return new Preset(
-                "default", 1, iconPath, List.of(), ConfigModel.FALLBACK_MOTD_LINES, List.of(), Conditions.any());
+        return new Preset("default", 1, iconPath, List.of(), ConfigModel.FALLBACK_MOTD_LINES, Conditions.any());
     }
 
     public record Conditions(

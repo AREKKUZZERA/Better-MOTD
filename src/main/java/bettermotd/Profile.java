@@ -8,11 +8,8 @@ public record Profile(
         int stickyTtlSeconds,
         int stickyMaxEntriesPerProfile,
         int stickyCleanupEveryNPings,
-        AnimationSettings animation,
         PlayerCountSettings playerCount,
         List<Preset> presets) {
-
-    public record AnimationSettings(boolean enabled, long frameIntervalMillis, ConfigModel.AnimationMode mode) {}
 
     public record PlayerCountSettings(
             boolean disableHover,

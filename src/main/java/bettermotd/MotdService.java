@@ -149,7 +149,7 @@ public final class MotdService {
         String reason;
 
         if (profile != null) {
-            selection = selectPreset(profile, ctx, false);
+            selection = selectPreset(profile, ctx);
             reason = selection.reason();
         } else {
             profile = resolveProfile(activeProfileId);
@@ -157,7 +157,7 @@ public final class MotdService {
             if (preset == null) {
                 return null;
             }
-            selection = new SelectionResult(preset, null, "manual preset selection");
+            selection = new SelectionResult(preset, "manual preset selection");
             reason = "manual preset selection";
             fromProfile = false;
         }
@@ -193,7 +193,7 @@ public final class MotdService {
     }
 
     private void applySelection(ServerListPingEvent event, RequestContext ctx, Profile profile) {
-        SelectionResult selection = selectPreset(profile, ctx, true);
+        SelectionResult selection = selectPreset(profile, ctx);
         PlayerCountService.PlayerCountResult counts = playerCountService.compute(
                 profile, ctx.request().ip(), event.getNumPlayers(), event.getMaxPlayers(), ctx.nowMs());
         MotdRenderResult render = renderMotd(profile, selection, counts, ctx);
@@ -220,7 +220,7 @@ public final class MotdService {
         }
     }
 
-    private SelectionResult selectPreset(Profile profile, RequestContext ctx, boolean count) {
+    private SelectionResult selectPreset(Profile profile, RequestContext ctx) {
         List<Preset> presets = profile.presets();
         if (presets == null || presets.isEmpty()) {
             presets = List.of(Preset.fallback(config.fallbackIconPath()));
@@ -231,7 +231,6 @@ public final class MotdService {
         long now = ctx.nowMs();
         long ttlMs = Math.max(1, profile.stickyTtlSeconds()) * 1000L;
         String ip = ctx.request().ip();
-        boolean perIpFrames = profile.animation().mode() == ConfigModel.AnimationMode.PER_IP_STICKY;
 
         if (ip != null) {
             runStickyMaintenance(profile, now, ttlMs);
@@ -247,62 +246,30 @@ public final class MotdService {
                 reason = "STICKY_PER_IP (sticky hit)";
             } else {
                 chosen = weightedRandom(presets, Objects.hash(ip, now));
-                entry = createStickyEntry(profile.id(), ip, chosen, now, perIpFrames);
+                entry = createStickyEntry(profile.id(), ip, chosen, now);
                 reason = "STICKY_PER_IP (new sticky, weighted random)";
             }
         } else if (mode == ConfigModel.SelectionMode.HASHED_PER_IP) {
             chosen = hashedPreset(presets, ip);
             reason = "HASHED_PER_IP (ip hash)";
-            if (perIpFrames && ip != null) {
-                entry = updateStickyEntry(profile.id(), ip, entry, chosen, now, ttlMs, true);
-            }
         } else if (mode == ConfigModel.SelectionMode.ROTATE) {
             chosen = rotatePreset(profile.id(), presets);
             reason = "ROTATE (counter)";
-            if (perIpFrames && ip != null) {
-                entry = updateStickyEntry(profile.id(), ip, entry, chosen, now, ttlMs, true);
-            }
         } else {
             int totalWeight =
                     presets.stream().mapToInt(p -> Math.max(1, p.weight())).sum();
             chosen = weightedRandom(presets, ThreadLocalRandom.current().nextLong());
             reason = "RANDOM (weighted total=" + totalWeight + ")";
-            if (perIpFrames && ip != null) {
-                entry = updateStickyEntry(profile.id(), ip, entry, chosen, now, ttlMs, true);
-            }
         }
 
-        return new SelectionResult(chosen, entry, reason);
+        return new SelectionResult(chosen, reason);
     }
 
-    private StickyEntry updateStickyEntry(
-            String profileId,
-            String ip,
-            StickyEntry existing,
-            Preset preset,
-            long now,
-            long ttlMs,
-            boolean ensureFrameSeed) {
+    private StickyEntry createStickyEntry(String profileId, String ip, Preset preset, long now) {
         if (ip == null) {
             return null;
         }
-        if (existing != null && isStickyValid(existing, now, ttlMs)) {
-            int frameSeed = existing.frameSeed();
-            StickyEntry updated = new StickyEntry(preset, existing.createdAtMs(), frameSeed);
-            stickyState(profileId).entries().put(ip, updated);
-            return updated;
-        }
-
-        return createStickyEntry(profileId, ip, preset, now, ensureFrameSeed);
-    }
-
-    private StickyEntry createStickyEntry(
-            String profileId, String ip, Preset preset, long now, boolean ensureFrameSeed) {
-        if (ip == null) {
-            return null;
-        }
-        int frameSeed = ensureFrameSeed ? ThreadLocalRandom.current().nextInt() : 0;
-        StickyEntry fresh = new StickyEntry(preset, now, frameSeed);
+        StickyEntry fresh = new StickyEntry(preset, now);
         StickyProfileState state = stickyState(profileId);
         StickyEntry previous = state.entries().put(ip, fresh);
         if (previous == null) {
@@ -414,30 +381,8 @@ public final class MotdService {
     private FrameSelection selectFrame(Profile profile, SelectionResult selection, RequestContext ctx) {
         Preset preset = selection.preset();
         PresetCache cache = presetCache(profile.id(), preset);
-        boolean anim = profile.animation().enabled();
-
-        List<CachedFrame> frames = cache.animatedFrames();
-        if (anim && frames != null && !frames.isEmpty()) {
-            int idx = resolveFrameIndex(profile, selection, ctx, frames.size());
-            return new FrameSelection(frames.get(idx), idx);
-        }
 
         return new FrameSelection(cache.staticFrame(), 0);
-    }
-
-    private int resolveFrameIndex(Profile profile, SelectionResult selection, RequestContext ctx, int size) {
-        if (size <= 0) {
-            return 0;
-        }
-        if (profile.animation().mode() == ConfigModel.AnimationMode.PER_IP_STICKY
-                && ctx.request().ip() != null) {
-            StickyEntry entry = selection.stickyEntry();
-            if (entry != null) {
-                return Math.floorMod(entry.frameSeed(), size);
-            }
-        }
-        long interval = profile.animation().frameIntervalMillis();
-        return (int) ((ctx.nowMs() / interval) % size);
     }
 
     private String applyPlaceholders(String input, PlaceholderValues values) {
@@ -512,8 +457,6 @@ public final class MotdService {
                 10,
                 10000,
                 500,
-                new Profile.AnimationSettings(
-                        true, ConfigModel.DEFAULT_FRAME_INTERVAL_MILLIS, ConfigModel.AnimationMode.GLOBAL),
                 new Profile.PlayerCountSettings(
                         false,
                         false,
@@ -583,15 +526,7 @@ public final class MotdService {
         String raw = lines.size() > 1 ? lines.get(0) + "\n" + lines.get(1) : lines.get(0) + "\n";
         CachedFrame staticFrame = buildCachedFrame(raw, profile, preset);
 
-        List<String> rawFrames = preset.motdFrames();
-        List<CachedFrame> frames = new ArrayList<>();
-        if (rawFrames != null && !rawFrames.isEmpty()) {
-            for (String frame : rawFrames) {
-                frames.add(buildCachedFrame(frame, profile, preset));
-            }
-        }
-
-        return new PresetCache(staticFrame, frames);
+        return new PresetCache(staticFrame);
     }
 
     private CachedFrame buildCachedFrame(String raw, Profile profile, Preset preset) {
@@ -787,12 +722,12 @@ public final class MotdService {
         }
     }
 
-    private record StickyEntry(Preset preset, long createdAtMs, int frameSeed) {}
+    private record StickyEntry(Preset preset, long createdAtMs) {}
 
     private record StickyProfileState(
             Map<String, StickyEntry> entries, Deque<String> order, AtomicInteger pingCounter) {}
 
-    private record SelectionResult(Preset preset, StickyEntry stickyEntry, String reason) {}
+    private record SelectionResult(Preset preset, String reason) {}
 
     public record ReloadResult(boolean success, int warnings) {}
 
@@ -803,7 +738,7 @@ public final class MotdService {
             ColorFormat usedFormat,
             boolean fallbackUsed) {}
 
-    private record PresetCache(CachedFrame staticFrame, List<CachedFrame> animatedFrames) {}
+    private record PresetCache(CachedFrame staticFrame) {}
 
     private record FrameSelection(CachedFrame frame, int index) {}
 

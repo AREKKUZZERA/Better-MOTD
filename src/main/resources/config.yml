@@ -35,13 +35,6 @@ profiles:
     stickyMaxEntriesPerProfile: 10000
     stickyCleanupEveryNPings: 500
 
-    animation:
-      enabled: true
-      frameIntervalMillis: 600
-      # GLOBAL = all clients see the same animation frame
-      # PER_IP_STICKY = each IP keeps one frame during stickyTtlSeconds
-      motdAnimationMode: "GLOBAL"
-
     playerCount:
       # Paper-only options. On Bukkit/Spigot they are ignored with one warning.
       disableHover: false
@@ -80,14 +73,18 @@ profiles:
         #   maxProtocol: 999
         #   minOnline: 0
         #   maxOnline: 100
-        motdFrames:
-          - "<gradient:#00D431:#00BF4B><bold>BetterMOTD</bold></gradient>\n<gray>Online: <white>%online%</white>/<white>%max%</white> | %version%</gray>"
-          - "<#00D431><bold>BetterMOTD</bold></#00D431>\n<gray>Welcome! Time: <white>%time%</white></gray>"
+        motd:
+          - "<gradient:#00D431:#00BF4B><bold>BetterMOTD</bold></gradient>"
+          - "<gray>Online: <white>%online%</white>/<white>%max%</white> | %version%</gray>"
+      - id: "welcome"
+        weight: 1
+        icon: "default.png"
+        motd:
+          - "<#00D431><bold>BetterMOTD</bold></#00D431>"
+          - "<gray>Welcome! Time: <white>%time%</white></gray>"
 
   maintenance:
     selectionMode: "ROTATE"
-    animation:
-      enabled: false
     playerCount:
       disableHover: false
       hidePlayerCount: false
