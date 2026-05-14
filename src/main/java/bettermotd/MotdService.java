@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import net.kyori.adventure.text.Component;
@@ -41,6 +42,7 @@ public final class MotdService {
     private final Map<String, AtomicInteger> rotateCounters = new ConcurrentHashMap<>();
     private final Set<String> formatWarnings = ConcurrentHashMap.newKeySet();
     private final Map<String, PresetCache> presetCache = new ConcurrentHashMap<>();
+    private final AtomicBoolean warnedHoverUnsupported = new AtomicBoolean();
 
     private volatile ConfigModel config = ConfigModel.empty();
     private volatile String activeProfileId = "default";
@@ -288,6 +290,7 @@ public final class MotdService {
         }
         if (!isStickyValid(existing, now, ttlMs)) {
             stickyState(profileId).entries().remove(ip, existing);
+            stickyState(profileId).order().removeIf(ip::equals);
             return null;
         }
         return existing;
@@ -432,10 +435,15 @@ public final class MotdService {
         PlaceholderValues values = buildPlaceholderValues("hover", profile.id(), counts, 0, ctx);
         List<String> rendered = new ArrayList<>(lines.size());
         for (String line : lines) {
-            rendered.add(applyPlaceholders(line, values));
+            String raw = applyPlaceholders(line, values);
+            TextFormatService.ParseResult parsed =
+                    textFormatService.parseToComponentDetailed(raw, config.colorFormat());
+            rendered.add(textFormatService.serializeToLegacy(parsed.component()));
         }
         if (!paperAdapter.applyHoverLines(event, rendered)) {
-            plugin.getLogger().warning("Custom hoverLines require Paper ping API.");
+            if (warnedHoverUnsupported.compareAndSet(false, true)) {
+                plugin.getLogger().warning("Custom hoverLines require Paper ping API.");
+            }
         }
     }
 
@@ -644,6 +652,7 @@ public final class MotdService {
                 ttlMs,
                 STICKY_CLEANUP_BATCH,
                 (entry, threshold) -> entry != null && entry.createdAtMs() >= threshold);
+        state.order().removeIf(ip -> !state.entries().containsKey(ip));
 
         enforceStickyLimit(profile, state);
     }
