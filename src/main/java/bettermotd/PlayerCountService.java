@@ -28,11 +28,15 @@ public final class PlayerCountService {
         int displayMax = safeMax;
         if (settings.justXMore().enabled()) {
             displayMax =
-                    Math.max(0, displayOnline + Math.max(0, settings.justXMore().x()));
+                    Math.max(0, safeOnline + Math.max(0, settings.justXMore().x()));
         }
         if (settings.maxPlayers().enabled()) {
             displayMax = Math.max(1, settings.maxPlayers().value());
         }
+        if (displayMax > 0) {
+            displayOnline = Math.min(displayOnline, displayMax);
+        }
+        fakeDelta = Math.max(0, displayOnline - safeOnline);
 
         return new PlayerCountResult(
                 safeOnline,
