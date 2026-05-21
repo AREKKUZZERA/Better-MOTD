@@ -30,6 +30,9 @@ public final class MotdService {
     private static final int STICKY_EVICTION_BATCH = 200;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
+    private static final String[] PLACEHOLDER_TOKENS = {
+        "%online%", "%max%", "%version%", "%preset%", "%profile%", "%motd_frame%", "%time%"
+    };
     private final JavaPlugin plugin;
     private final ActiveProfileStore profileStore;
     private final IconCache iconCache;
@@ -42,6 +45,8 @@ public final class MotdService {
     private final Map<String, AtomicInteger> rotateCounters = new ConcurrentHashMap<>();
     private final Set<String> formatWarnings = ConcurrentHashMap.newKeySet();
     private final Map<String, PresetCache> presetCache = new ConcurrentHashMap<>();
+    private final Map<String, Integer> presetWeightTotals = new ConcurrentHashMap<>();
+    private final Map<String, HoverCache> hoverCache = new ConcurrentHashMap<>();
     private final AtomicBoolean warnedHoverUnsupported = new AtomicBoolean();
 
     private volatile ConfigModel config = ConfigModel.empty();
@@ -68,6 +73,7 @@ public final class MotdService {
             iconCache.reload(collectIconPaths(config));
             formatWarnings.clear();
             rebuildPresetCache();
+            rebuildHoverCache();
             stickyStates.clear();
             rotateCounters.clear();
 
@@ -151,7 +157,7 @@ public final class MotdService {
         String reason;
 
         if (profile != null) {
-            selection = selectPreset(profile, ctx);
+            selection = selectPreset(profile, ctx, true);
             reason = selection.reason();
         } else {
             profile = resolveProfile(activeProfileId);
@@ -195,7 +201,7 @@ public final class MotdService {
     }
 
     private void applySelection(ServerListPingEvent event, RequestContext ctx, Profile profile) {
-        SelectionResult selection = selectPreset(profile, ctx);
+        SelectionResult selection = selectPreset(profile, ctx, false);
         PlayerCountService.PlayerCountResult counts =
                 playerCountService.compute(profile, event.getNumPlayers(), event.getMaxPlayers());
         MotdRenderResult render = renderMotd(profile, selection, counts, ctx);
@@ -222,12 +228,14 @@ public final class MotdService {
         }
     }
 
-    private SelectionResult selectPreset(Profile profile, RequestContext ctx) {
+    private SelectionResult selectPreset(Profile profile, RequestContext ctx, boolean includeReason) {
         List<Preset> presets = profile.presets();
         if (presets == null || presets.isEmpty()) {
             presets = List.of(Preset.fallback(config.fallbackIconPath()));
         }
+        List<Preset> profilePresets = presets;
         presets = filterByConditions(presets, ctx.request());
+        int totalWeight = presets == profilePresets ? presetWeightTotal(profile.id(), presets) : totalWeight(presets);
 
         ConfigModel.SelectionMode mode = profile.selectionMode();
         long now = ctx.nowMs();
@@ -245,26 +253,37 @@ public final class MotdService {
         if (mode == ConfigModel.SelectionMode.STICKY_PER_IP && ip != null) {
             if (entry != null) {
                 chosen = entry.preset();
-                reason = "STICKY_PER_IP (sticky hit)";
+                reason = includeReason ? "STICKY_PER_IP (sticky hit)" : null;
             } else {
-                chosen = weightedRandom(presets, Objects.hash(ip, now));
+                chosen = weightedRandom(presets, totalWeight, Objects.hash(ip, now));
                 entry = createStickyEntry(profile.id(), ip, chosen, now);
-                reason = "STICKY_PER_IP (new sticky, weighted random)";
+                reason = includeReason ? "STICKY_PER_IP (new sticky, weighted random)" : null;
             }
         } else if (mode == ConfigModel.SelectionMode.HASHED_PER_IP) {
             chosen = hashedPreset(presets, ip);
-            reason = "HASHED_PER_IP (ip hash)";
+            reason = includeReason ? "HASHED_PER_IP (ip hash)" : null;
         } else if (mode == ConfigModel.SelectionMode.ROTATE) {
             chosen = rotatePreset(profile.id(), presets);
-            reason = "ROTATE (counter)";
+            reason = includeReason ? "ROTATE (counter)" : null;
         } else {
-            int totalWeight =
-                    presets.stream().mapToInt(p -> Math.max(1, p.weight())).sum();
-            chosen = weightedRandom(presets, ThreadLocalRandom.current().nextLong());
-            reason = "RANDOM (weighted total=" + totalWeight + ")";
+            chosen = weightedRandom(
+                    presets, totalWeight, ThreadLocalRandom.current().nextLong());
+            reason = includeReason ? "RANDOM (weighted total=" + totalWeight + ")" : null;
         }
 
         return new SelectionResult(chosen, reason);
+    }
+
+    private int presetWeightTotal(String profileId, List<Preset> presets) {
+        return presetWeightTotals.computeIfAbsent(profileId, ignored -> totalWeight(presets));
+    }
+
+    private int totalWeight(List<Preset> presets) {
+        int total = 0;
+        for (Preset preset : presets) {
+            total += Math.max(1, preset.weight());
+        }
+        return total;
     }
 
     private StickyEntry createStickyEntry(String profileId, String ip, Preset preset, long now) {
@@ -328,13 +347,9 @@ public final class MotdService {
         return presets.get(idx);
     }
 
-    private Preset weightedRandom(List<Preset> presets, long seed) {
-        int total = 0;
-        for (Preset p : presets) {
-            total += Math.max(1, p.weight());
-        }
+    private Preset weightedRandom(List<Preset> presets, int totalWeight, long seed) {
         // Use int modulo explicitly to avoid long/int ambiguity
-        int r = Math.floorMod((int) seed, total);
+        int r = Math.floorMod((int) seed, totalWeight);
         int acc = 0;
         for (Preset p : presets) {
             acc += Math.max(1, p.weight());
@@ -392,8 +407,6 @@ public final class MotdService {
         if (input == null || input.indexOf('%') < 0) {
             return input;
         }
-        // Token table ordered by occurrence likelihood
-        String[] tokens = {"%online%", "%max%", "%version%", "%preset%", "%profile%", "%motd_frame%", "%time%"};
         String[] replacements = {
             values.online(),
             values.max(),
@@ -409,8 +422,8 @@ public final class MotdService {
         outer:
         for (int i = 0; i < len; i++) {
             if (input.charAt(i) == '%') {
-                for (int t = 0; t < tokens.length; t++) {
-                    String token = tokens[t];
+                for (int t = 0; t < PLACEHOLDER_TOKENS.length; t++) {
+                    String token = PLACEHOLDER_TOKENS[t];
                     if (input.regionMatches(i, token, 0, token.length())) {
                         out.append(replacements[t]);
                         i += token.length() - 1;
@@ -432,13 +445,17 @@ public final class MotdService {
         if (lines == null || lines.isEmpty() || counts.disableHover()) {
             return;
         }
-        PlaceholderValues values = buildPlaceholderValues("hover", profile.id(), counts, 0, ctx);
-        List<String> rendered = new ArrayList<>(lines.size());
-        for (String line : lines) {
-            String raw = applyPlaceholders(line, values);
-            TextFormatService.ParseResult parsed =
-                    textFormatService.parseToComponentDetailed(raw, config.colorFormat());
-            rendered.add(textFormatService.serializeToLegacy(parsed.component()));
+        HoverCache cache = hoverCache(profile);
+        List<String> rendered = cache.staticLines();
+        if (rendered == null) {
+            PlaceholderValues values = buildPlaceholderValues("hover", profile.id(), counts, 0, ctx);
+            rendered = new ArrayList<>(lines.size());
+            for (String line : lines) {
+                String raw = applyPlaceholders(line, values);
+                TextFormatService.ParseResult parsed =
+                        textFormatService.parseToComponentDetailed(raw, config.colorFormat());
+                rendered.add(textFormatService.serializeToLegacy(parsed.component()));
+            }
         }
         if (!paperAdapter.applyHoverLines(event, rendered)) {
             if (warnedHoverUnsupported.compareAndSet(false, true)) {
@@ -510,7 +527,9 @@ public final class MotdService {
 
     private void rebuildPresetCache() {
         presetCache.clear();
+        presetWeightTotals.clear();
         for (Profile profile : config.profiles().values()) {
+            presetWeightTotals.put(profile.id(), totalWeight(profile.presets()));
             for (Preset preset : profile.presets()) {
                 presetCache.put(presetCacheKey(profile.id(), preset.id()), buildPresetCache(profile, preset));
             }
@@ -537,6 +556,36 @@ public final class MotdService {
         return new PresetCache(staticFrame);
     }
 
+    private void rebuildHoverCache() {
+        hoverCache.clear();
+        for (Profile profile : config.profiles().values()) {
+            hoverCache.put(profile.id(), buildHoverCache(profile));
+        }
+    }
+
+    private HoverCache hoverCache(Profile profile) {
+        return hoverCache.computeIfAbsent(profile.id(), ignored -> buildHoverCache(profile));
+    }
+
+    private HoverCache buildHoverCache(Profile profile) {
+        List<String> lines = profile.playerCount().hoverLines();
+        if (lines == null || lines.isEmpty()) {
+            return new HoverCache(List.of());
+        }
+        for (String line : lines) {
+            if (hasPlaceholders(line)) {
+                return new HoverCache(null);
+            }
+        }
+        List<String> rendered = new ArrayList<>(lines.size());
+        for (String line : lines) {
+            TextFormatService.ParseResult parsed =
+                    textFormatService.parseToComponentDetailed(line, config.colorFormat());
+            rendered.add(textFormatService.serializeToLegacy(parsed.component()));
+        }
+        return new HoverCache(List.copyOf(rendered));
+    }
+
     private CachedFrame buildCachedFrame(String raw, Profile profile, Preset preset) {
         boolean hasPlaceholders = hasPlaceholders(raw);
         if (!hasPlaceholders) {
@@ -555,8 +604,7 @@ public final class MotdService {
         if (config.placeholderApi().enabled()) {
             return true;
         }
-        for (String token :
-                new String[] {"%online%", "%max%", "%version%", "%preset%", "%profile%", "%motd_frame%", "%time%"}) {
+        for (String token : PLACEHOLDER_TOKENS) {
             if (input.contains(token)) {
                 return true;
             }
@@ -601,6 +649,9 @@ public final class MotdService {
             if (preset.conditions().matches(request)) {
                 matching.add(preset);
             }
+        }
+        if (matching.size() == presets.size()) {
+            return presets;
         }
         return matching.isEmpty() ? presets : matching;
     }
@@ -748,6 +799,8 @@ public final class MotdService {
             boolean fallbackUsed) {}
 
     private record PresetCache(CachedFrame staticFrame) {}
+
+    private record HoverCache(List<String> staticLines) {}
 
     private record FrameSelection(CachedFrame frame, int index) {}
 
