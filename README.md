@@ -5,8 +5,7 @@ Lightweight Paper plugin for server-list MOTD, icons, formatting and player-coun
 ## Requirements
 
 - Java 21+
-- Paper 1.21 - 1.21.11 or 26.1 - 26.1.2
-- Minecraft 1.21 - 1.21.11 or 26.1 - 26.1.2
+- Paper and Minecraft: 1.21 through 1.21.11, or 26.1 through 26.1.2
 
 The plugin uses Paper ping APIs for component MOTD, fake online count, hidden player count and hover control.
 Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
@@ -30,16 +29,23 @@ Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
 ## Installation
 
 1. Download `BetterMOTD-<version>.jar`.
-2. Put it into `plugins/`.
+2. Use the jar matching your server version and put it into `plugins/`.
 3. Start the server once.
 4. Edit `plugins/BetterMOTD/config.yml`.
 5. Run `/bettermotd reload`.
+
+## Supported builds
+
+| Server versions | Artifact |
+| --- | --- |
+| 1.21 - 1.21.11 | `BetterMOTD-<pluginVersion>-mc-1.21.x.jar` |
+| 26.1 - 26.1.2 | `BetterMOTD-<pluginVersion>-mc-26.1-26.1.2.jar` |
 
 ## Build Artifacts
 
 Build both supported Minecraft targets:
 
-```powershell
+```bash
 mvn clean package
 ```
 
@@ -50,9 +56,7 @@ Artifacts are written to `target/`:
 
 To copy both jars into `target/dist/`:
 
-```powershell
-.\scripts\build-all.ps1
-```
+The same command creates both jars; `scripts/build-all.ps1` is available for Windows users who want copies in `target/dist/`.
 
 ## Commands
 
@@ -69,7 +73,7 @@ Command aliases: `/bm`, `/bmotd`, `/motd`.
 
 MiniMOTD import reads common `line1`/`line2` or `motd-first-line`/`motd-second-line` pairs and creates profile `imported`.
 
-## Config Basics
+## Quick configuration
 
 Default config path:
 
@@ -77,20 +81,55 @@ Default config path:
 plugins/BetterMOTD/config.yml
 ```
 
-Minimal preset:
+The generated config is ready to use. To change the server-list text, edit only these two lines:
 
 ```yml
 profiles:
   default:
     presets:
       - id: "main"
-        icon: "default.png"
         motd:
           - "<green><bold>My Server</bold></green>"
           - "<gray>Online: <white>%online%</white>/<white>%max%</white></gray>"
 ```
 
-Add more presets and choose how they change with `selectionMode`: `RANDOM`, `STICKY_PER_IP`, `HASHED_PER_IP`, or `ROTATE`.
+`colorFormat` defaults to `AUTO`, and placeholders are enabled automatically. Supported placeholders are `%online%`, `%max%`, `%version%`, `%profile%`, `%preset%`, `%motd_frame%`, and `%time%`.
+
+## Optional configuration
+
+Add these settings only when you need them. All omitted values use safe defaults.
+
+```yml
+profiles:
+  default:
+    # RANDOM, STICKY_PER_IP (default), HASHED_PER_IP, or ROTATE
+    selectionMode: "STICKY_PER_IP"
+    presets:
+      - id: "weekend"
+        weight: 2
+        icon: "default.png"
+        icons: ["default.png", "weekend.png"]
+        conditions:
+          hostnames: ["play.example.net"]
+          minOnline: 1
+        motd:
+          - "<gold>Weekend event!</gold>"
+          - "<gray>Online: %online%/%max%</gray>"
+    playerCount:
+      hidePlayerCount: false
+      hoverLines: ["<green>Welcome!</green>"]
+      fakePlayers:
+        enabled: true
+        mode: "random"
+        value: "2:8"
+```
+
+For text containing literal `<` or `>`, set `colorFormat: "AUTO_STRICT"`. Enable PlaceholderAPI only when that plugin is installed:
+
+```yml
+placeholderAPI:
+  enabled: true
+```
 
 Icons must be PNG files inside:
 

@@ -5,7 +5,7 @@
 
   <groupId>bettermotd</groupId>
   <artifactId>BetterMOTD</artifactId>
-  <version>1.8.2</version>
+  <version>1.8.3</version>
 
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
@@ -15,7 +15,7 @@
     <minecraft.target>mc-1.21.x</minecraft.target>
     <plugin.api.version>1.21</plugin.api.version>
 
-    <!-- Default artifact targets Minecraft 1.21.x. Use -Pmc-26.1.x for the 26.1.x artifact. -->
+    <!-- The package phase also creates the Paper 26.1-26.1.2 artifact. -->
     <paper.api.version>1.21-R0.1-SNAPSHOT</paper.api.version>
   </properties>
 
