@@ -5,7 +5,7 @@ Lightweight Paper plugin for server-list MOTD, icons, formatting and player-coun
 ## Requirements
 
 - Java 21+
-- Paper and Minecraft: 1.21 through 1.21.11, or 26.1 through 26.1.2
+- Paper and Minecraft: 1.21 through 1.21.11, 26.1 through 26.1.2, or 26.2
 
 The plugin uses Paper ping APIs for component MOTD, fake online count, hidden player count and hover control.
 Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
@@ -40,6 +40,7 @@ Bukkit fallback is kept for basic MOTD text, but production use should be Paper.
 | --- | --- |
 | 1.21 - 1.21.11 | `BetterMOTD-<pluginVersion>-mc-1.21.x.jar` |
 | 26.1 - 26.1.2 | `BetterMOTD-<pluginVersion>-mc-26.1-26.1.2.jar` |
+| 26.2 | `BetterMOTD-<pluginVersion>-mc-26.2.jar` |
 
 ## Build Artifacts
 
@@ -53,6 +54,7 @@ Artifacts are written to `target/`:
 
 - `BetterMOTD-<pluginVersion>-mc-1.21.x.jar`
 - `BetterMOTD-<pluginVersion>-mc-26.1-26.1.2.jar`
+- `BetterMOTD-<pluginVersion>-mc-26.2.jar`
 
 To copy both jars into `target/dist/`:
 

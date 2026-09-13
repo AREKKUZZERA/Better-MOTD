@@ -5,7 +5,7 @@
 
   <groupId>bettermotd</groupId>
   <artifactId>BetterMOTD</artifactId>
-  <version>1.8.3</version>
+  <version>1.8.4</version>
 
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
@@ -15,7 +15,7 @@
     <minecraft.target>mc-1.21.x</minecraft.target>
     <plugin.api.version>1.21</plugin.api.version>
 
-    <!-- The package phase also creates the Paper 26.1-26.1.2 artifact. -->
+    <!-- The package phase also creates Paper 26.x variant artifacts. -->
     <paper.api.version>1.21-R0.1-SNAPSHOT</paper.api.version>
   </properties>
 
@@ -163,6 +163,32 @@
               </target>
             </configuration>
           </execution>
+          <execution>
+            <id>package-mc-26.2</id>
+            <phase>package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <property name="variant.dir" value="${project.build.directory}/variant-mc-26.2"/>
+                <delete dir="${variant.dir}"/>
+                <mkdir dir="${variant.dir}"/>
+                <copy todir="${variant.dir}">
+                  <fileset dir="${project.build.outputDirectory}"/>
+                </copy>
+                <copy file="${project.basedir}/src/main/variants/mc-26.2/plugin.yml"
+                      tofile="${variant.dir}/plugin.yml"
+                      overwrite="true">
+                  <filterset>
+                    <filter token="PROJECT_VERSION" value="${project.version}"/>
+                  </filterset>
+                </copy>
+                <jar destfile="${project.build.directory}/${project.artifactId}-${project.version}-mc-26.2.jar"
+                     basedir="${variant.dir}"/>
+              </target>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
     </plugins>
@@ -184,6 +210,15 @@
         <minecraft.target>mc-26.1-26.1.2</minecraft.target>
         <plugin.api.version>26.1</plugin.api.version>
         <paper.api.version>26.1.2.build.63-stable</paper.api.version>
+      </properties>
+    </profile>
+
+    <profile>
+      <id>mc-26.2</id>
+      <properties>
+        <minecraft.target>mc-26.2</minecraft.target>
+        <plugin.api.version>26.2</plugin.api.version>
+        <paper.api.version>26.2.build.123-stable</paper.api.version>
       </properties>
     </profile>
   </profiles>
